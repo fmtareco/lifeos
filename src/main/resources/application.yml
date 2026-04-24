@@ -3,6 +3,11 @@ spring:
   application:
     name: lifeOS
 
+  # Activate 'dev' profile locally so application-dev.yml supplies credentials.
+  # Railway overrides this with 'prod' via the Procfile.
+  profiles:
+    active: dev
+
   datasource:
     url: jdbc:h2:file:./data/lifeos-db;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
@@ -26,11 +31,11 @@ spring:
 server:
   port: 8080
 
-# ── App credentials (override via env vars in production) ──
+# ── App credentials (must be set via env vars — no defaults in production) ──
 app:
   security:
-    username: ${APP_USER:admin}
-    password: ${APP_PASS:changeme}
+    username: ${APP_USER}
+    password: ${APP_PASS}
 
 logging:
   level:
@@ -45,8 +50,8 @@ spring:
       on-profile: prod
 
   datasource:
-    # Railway injects DATABASE_URL automatically when you add a PostgreSQL service
-    url: ${DATABASE_URL}
+    # Railway injects DATABASE_URL as postgresql://... but JDBC needs jdbc:postgresql://
+    url: jdbc:${DATABASE_URL}
     driver-class-name: org.postgresql.Driver
     username: ${PGUSER:lifeos}
     password: ${PGPASSWORD:changeme}
