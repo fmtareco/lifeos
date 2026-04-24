@@ -851,6 +851,10 @@ const S = {
   currentPage:'today',
   cfgPanel:'areas',
   cfgAreaFilter:'all',
+  cfgActivityFilter:'all',
+  cfgProjectFilter:'all',
+  cfgRoutineActFilter:'all',
+  cfgBalancePeriod:'all',
   scoreView:'overview',
   scorePeriod:'day',
   kanbanDragId:null,
@@ -1763,10 +1767,11 @@ function renderCfgActivities(){
   <div class="entity-list">
     ${filtered.map(a=>{
       const area=byId(S.areas,a.areaId);
+      const goalsLabel = a.goalsNum && a.goalsPeriod ? `${a.goalsNum}× / ${a.goalsPeriod}` : esc(a.goals||'');
       return `<div class="entity-row">
         <div class="entity-row-main">
           <div class="entity-row-name">${esc(a.label)}</div>
-          <div class="entity-row-meta">${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:'no area'} · ${esc(a.goals||'')}</div>
+          <div class="entity-row-meta">${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:'no area'}${goalsLabel?' · '+goalsLabel:''}</div>
         </div>
         <div class="entity-actions">
           <button class="btn sm ghost" onclick="openActivityModal('${a.id}')">✎</button>
@@ -1780,24 +1785,37 @@ function renderCfgActivities(){
 function renderCfgProjects(){
   const el=document.getElementById('cfg-projects');
   const af=S.cfgAreaFilter;
-  const filtered=S.projects.filter(p=>af==='all'||p.areaId===af);
+  const acFilter=S.cfgActivityFilter||'all';
+  let filtered=S.projects.filter(p=>af==='all'||p.areaId===af);
+  if(acFilter!=='all') filtered=filtered.filter(p=>p.activityId===acFilter);
+  // activity filter dropdown (scoped to area filter)
+  const actsForArea = af==='all'?S.activities:S.activities.filter(a=>a.areaId===af);
+  const acFilterHtml=`<select onchange="S.cfgActivityFilter=this.value;renderCfgProjects()" style="font-size:11px;padding:4px 8px;margin-left:8px;">
+    <option value="all">All activities</option>
+    ${actsForArea.map(a=>`<option value="${a.id}" ${acFilter===a.id?'selected':''}>${esc(a.label)}</option>`).join('')}
+  </select>`;
   el.innerHTML=`<div class="section-head"><h3>Projects</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
+    ${acFilterHtml}
     <button class="btn sm primary" onclick="openProjectModal(null)" style="margin-left:auto">+ project</button></div>
   <div class="entity-list">
     ${filtered.map(p=>{
       const area=byId(S.areas,p.areaId);
+      const act=byId(S.activities,p.activityId);
       const du=daysUntil(p.deadline);
+      const depProj=byId(S.projects,p.dependsOnProjectId);
+      const STATUS_LABELS={todo:'To Do',doing:'In Progress',done:'Done',suspended:'Suspended',waiting:'Waiting'};
       return `<div class="entity-row">
         <div class="entity-row-main">
           <div class="entity-row-name">${esc(p.label)}</div>
           <div class="entity-row-meta">
             ${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:''}
+            ${act?` · <span style="color:var(--ink2)">${esc(act.label)}</span>`:''}
             ${p.deadline?` · <span class="${du<0?'tag tag-p1':''}">${fmtDate(p.deadline)}</span>`:''}
-            ${p.goals?` · ${esc(p.goals)}`:''}
+            ${depProj?` · depends: ${esc(depProj.label)}`:''}
           </div>
         </div>
         <div class="entity-actions">
-          <span class="badge">${esc(p.status||'todo')}</span>
+          <span class="badge">${STATUS_LABELS[p.status]||esc(p.status||'todo')}</span>
           <button class="btn sm ghost" onclick="openProjectModal('${p.id}')">✎</button>
           <button class="btn sm danger" onclick="deleteEntity('projects','${p.id}')">✕</button>
         </div>
@@ -1809,21 +1827,38 @@ function renderCfgProjects(){
 function renderCfgTasks(){
   const el=document.getElementById('cfg-tasks');
   const af=S.cfgAreaFilter;
-  const filtered=S.tasks.filter(t=>af==='all'||t.areaId===af);
+  const pjFilter=S.cfgProjectFilter||'all';
+  let filtered=S.tasks.filter(t=>{
+    if(af!=='all'&&t.areaId!==af) return false;
+    if(pjFilter!=='all'&&t.projectId!==pjFilter) return false;
+    return true;
+  });
+  const projsForArea = af==='all'?S.projects:S.projects.filter(p=>p.areaId===af);
+  const pjFilterHtml=`<select onchange="S.cfgProjectFilter=this.value;renderCfgTasks()" style="font-size:11px;padding:4px 8px;margin-left:8px;">
+    <option value="all">All projects</option>
+    ${projsForArea.map(p=>`<option value="${p.id}" ${pjFilter===p.id?'selected':''}>${esc(p.label)}</option>`).join('')}
+  </select>`;
   el.innerHTML=`<div class="section-head"><h3>Tasks</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
+    ${pjFilterHtml}
     <button class="btn sm primary" onclick="openTaskModal(null)" style="margin-left:auto">+ task</button></div>
   <div class="entity-list">
     ${filtered.map(t=>{
-      const area=byId(S.areas,t.areaId);
       const proj=byId(S.projects,t.projectId);
+      const act=proj?byId(S.activities,proj.activityId):null;
+      const area=byId(S.areas,t.areaId||(proj?.areaId));
+      const depTask=byId(S.tasks,t.dependsOnTaskId);
       const du=daysUntil(t.deadline);
+      const duAct=t.activationDate?daysUntil(t.activationDate):null;
       return `<div class="entity-row">
         <div class="entity-row-main">
           <div class="entity-row-name">${esc(t.label)}</div>
           <div class="entity-row-meta">
             ${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:''}
             ${proj?` · ${esc(proj.label)}`:''}
+            ${act?` · ${esc(act.label)}`:''}
             ${t.deadline?` · ${du<0?`<span style="color:var(--danger)">overdue ${Math.abs(du)}d</span>`:fmtDate(t.deadline)}`:''}
+            ${depTask?` · 🔒 ${esc(depTask.label)}`:''}
+            ${t.activationDate&&duAct!==null&&duAct>0?` · active in ${duAct}d`:''}
           </div>
         </div>
         <div class="entity-actions">
@@ -1840,24 +1875,37 @@ function renderCfgTasks(){
 function renderCfgRoutines(){
   const el=document.getElementById('cfg-routines');
   const af=S.cfgAreaFilter;
+  const rActFilter=S.cfgRoutineActFilter||'all';
+  const actsForArea = af==='all'?S.activities:S.activities.filter(a=>a.areaId===af);
   const filtered=S.routines.filter(r=>{
-    if(af==='all') return true;
     const ac=byId(S.activities,r.activityId);
-    return ac?.areaId===af;
+    if(af!=='all'&&ac?.areaId!==af) return false;
+    if(rActFilter!=='all'&&r.activityId!==rActFilter) return false;
+    return true;
   });
+  const rActFilterHtml=`<select onchange="S.cfgRoutineActFilter=this.value;renderCfgRoutines()" style="font-size:11px;padding:4px 8px;margin-left:8px;">
+    <option value="all">All activities</option>
+    ${actsForArea.map(a=>`<option value="${a.id}" ${rActFilter===a.id?'selected':''}>${esc(a.label)}</option>`).join('')}
+  </select>`;
   el.innerHTML=`<div class="section-head"><h3>Routines</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
+    ${rActFilterHtml}
     <button class="btn sm primary" onclick="openRoutineModal(null)" style="margin-left:auto">+ routine</button></div>
   <div class="entity-list">
     ${filtered.map(r=>{
       const ac=byId(S.activities,r.activityId);
       const area=byId(S.areas,ac?.areaId);
+      const ev=byId(S.events,r.eventId);
+      const freqLabel=r.freqNum&&r.freqPeriod?`${r.freqNum}× / ${r.freqPeriod}`:esc(r.frequency||'');
+      const periodsLabel=r.applicablePeriods&&r.applicablePeriods.length?r.applicablePeriods.join(', '):'all periods';
       return `<div class="entity-row">
         <div class="entity-row-main">
           <div class="entity-row-name">${esc(r.label)}</div>
           <div class="entity-row-meta">
             ${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:''}
             ${ac?` · ${esc(ac.label)}`:''}
-            · ${esc(r.frequency||'')} · ${fmtMin(r.durationMin)}
+            · ${freqLabel} · ${fmtMin(r.durationMin)}
+            ${ev?` · on event: ${esc(ev.label)}`:''}
+            · ${periodsLabel}
           </div>
         </div>
         <div class="entity-actions">
@@ -1918,24 +1966,55 @@ function renderCfgPeriods(){
 // ── BALANCE ──
 function renderCfgBalance(){
   const el=document.getElementById('cfg-balance');
-  let html=`<div class="section-head"><h3>Balance Weights</h3></div>
+  const af=S.cfgAreaFilter;
+  const selPer=S.cfgBalancePeriod||'all';
+
+  // Period selector
+  const perOpts=`<option value="all">All periods</option>`+S.periods.map(p=>`<option value="${p.id}" ${selPer===p.id?'selected':''}>${esc(p.label)}</option>`).join('');
+  let html=`<div class="section-head"><h3>Balance Weights</h3>
+    <select onchange="S.cfgBalancePeriod=this.value;renderCfgBalance()" style="font-size:11px;padding:4px 8px;margin-left:8px;">${perOpts}</select>
+  </div>
   <div style="font-size:11px;color:var(--ink3);margin-bottom:16px;line-height:1.6">
-    Define what % of available daily hours should be devoted to each area, per period type.<br>
-    Total across areas should sum to 100%.
+    % of available daily hours per area. Total should sum to 100%.
   </div>`;
 
-  const af=S.cfgAreaFilter;
   const areasToShow = af==='all' ? S.areas : S.areas.filter(a=>a.id===af);
-  S.periods.forEach(per=>{
+  const periodsToShow = selPer==='all' ? S.periods : S.periods.filter(p=>p.id===selPer);
+
+  // If area filter active + all periods: show cross-period comparison table
+  if(af!=='all'&&selPer==='all'){
+    const area=areaOf(af);
+    html+=`<div style="font-family:var(--font-display);font-style:italic;font-size:15px;color:${area?.color||'#888'};margin-bottom:12px;">${esc(area?.label||'')} — all periods</div>`;
+    S.periods.forEach(per=>{
+      const row=S.balance.find(b=>b.periodId===per.id&&b.areaId===af);
+      const val=row?.weightPct||0;
+      const allWeights=S.balance.filter(b=>b.periodId===per.id);
+      const total=allWeights.reduce((s,b)=>s+(b.weightPct||0),0);
+      const totalClass=Math.abs(total-100)<=2?'weight-ok':Math.abs(total-100)<=10?'weight-warn':'weight-err';
+      html+=`<div class="balance-area-row">
+        <div class="bal-area-head">
+          <span class="bal-area-name">${esc(per.label)}</span>
+          <span class="bal-pct" id="balpct-${per.id}-${af}">${val}%</span>
+          <span class="${totalClass}" style="font-size:10px;margin-left:8px">total: ${total}%</span>
+        </div>
+        <input type="range" min="0" max="100" value="${val}"
+          oninput="updateBalanceWeight('${per.id}','${af}',this.value)" style="margin-top:4px">
+        <div style="font-size:10px;color:var(--ink3);margin-top:2px">
+          = ${Math.round(val/100*(per.availableHours||16)*60)} min / day
+        </div>
+      </div>`;
+    });
+    el.innerHTML=html; return;
+  }
+
+  periodsToShow.forEach(per=>{
     const weights=S.balance.filter(b=>b.periodId===per.id);
     const total=weights.reduce((s,b)=>s+(b.weightPct||0),0);
     const totalClass=Math.abs(total-100)<=2?'weight-ok':Math.abs(total-100)<=10?'weight-warn':'weight-err';
-
     html+=`<div style="margin-bottom:24px;">
       <div style="font-family:var(--font-display);font-style:italic;font-size:16px;color:var(--ink2);margin-bottom:8px;">${esc(per.label)}</div>
-      <div class="weight-total"><span>Total: </span><span class="${totalClass}">${total}%</span><span style="color:var(--ink3)">${Math.abs(total-100)<=2?'✓ balanced':total>100?`(${total-100}% over)`:`(${100-total}% under)`}</span></div>`;
-
-    S.areas.forEach(a=>{
+      <div class="weight-total"><span>Total: </span><span class="${totalClass}">${total}%</span><span style="color:var(--ink3)">${Math.abs(total-100)<=2?'✓ balanced':total>100?` (${total-100}% over)`:` (${100-total}% under)`}</span></div>`;
+    areasToShow.forEach(a=>{
       const row=weights.find(b=>b.areaId===a.id);
       const val=row?.weightPct||0;
       html+=`<div class="balance-area-row">
@@ -1945,8 +2024,7 @@ function renderCfgBalance(){
           <span class="bal-pct" id="balpct-${per.id}-${a.id}">${val}%</span>
         </div>
         <input type="range" min="0" max="100" value="${val}"
-          oninput="updateBalanceWeight('${per.id}','${a.id}',this.value)"
-          style="margin-top:4px">
+          oninput="updateBalanceWeight('${per.id}','${a.id}',this.value)" style="margin-top:4px">
         <div style="font-size:10px;color:var(--ink3);margin-top:2px">
           = ${Math.round(val/100*(per.availableHours||16)*60)} min / day
         </div>
@@ -2084,12 +2162,16 @@ async function saveLogAction(existingId){
 // ── TASK MODAL ──
 function openTaskModal(id, defaultStatus){
   const t=id?byId(S.tasks,id):null;
+  const preProj=t?.projectId||(S.cfgProjectFilter&&S.cfgProjectFilter!=='all'?S.cfgProjectFilter:'');
+  const preProj_obj=byId(S.projects,preProj);
+  const preArea=t?.areaId||preProj_obj?.areaId||(S.cfgAreaFilter!=='all'?S.cfgAreaFilter:'');
+  const depTaskOpts='<option value="">— none —</option>'+S.tasks.filter(x=>x.id!==id).map(x=>`<option value="${x.id}" ${t?.dependsOnTaskId===x.id?'selected':''}>${esc(x.label)}</option>`).join('');
   openModal(`<div class="modal-title">${t?'Edit task':'New task'}<button onclick="closeModal()">✕</button></div>
   <div class="field"><label>Label</label><input type="text" id="mt-label" value="${esc(t?.label||'')}"></div>
   <div class="field"><label>Description</label><textarea id="mt-desc">${esc(t?.description||'')}</textarea></div>
   <div class="grid2">
-    <div class="field"><label>Area</label><select id="mt-area"><option value="">—</option>${areaOptions(t?.areaId||'')}</select></div>
-    <div class="field"><label>Project</label><select id="mt-project">${projectOptions(t?.projectId||'')}</select></div>
+    <div class="field"><label>Project</label><select id="mt-project">${projectOptions(preProj)}</select></div>
+    <div class="field"><label>Area (override)</label><select id="mt-area"><option value="">from project</option>${areaOptions(preArea)}</select></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Priority</label>
@@ -2110,6 +2192,10 @@ function openTaskModal(id, defaultStatus){
     <div class="field"><label>Deadline</label><input type="date" id="mt-deadline" value="${t?.deadline||''}"></div>
     <div class="field"><label>Est. duration (min)</label><input type="number" id="mt-dur" value="${t?.estimatedMin||''}" placeholder="0"></div>
   </div>
+  <div class="grid2">
+    <div class="field"><label>Depends on task</label><select id="mt-dep-task">${depTaskOpts}</select></div>
+    <div class="field"><label>Activation date (not before)</label><input type="date" id="mt-activation" value="${t?.activationDate||''}"></div>
+  </div>
   <div class="field"><label>Resources (URL — description, one per line)</label>
     <textarea id="mt-res" rows="2">${(t?.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join('\n')}</textarea></div>
   <div class="modal-actions">
@@ -2120,25 +2206,30 @@ function openTaskModal(id, defaultStatus){
 }
 
 async function saveTask(existingId){
+  const label=document.getElementById('mt-label').value.trim();
+  if(!label){ showToast('Label is required'); return; }
   const resRaw=document.getElementById('mt-res').value.trim();
   const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[];
+  const projectId=document.getElementById('mt-project').value||null;
+  const proj=byId(S.projects,projectId);
   const task={
-    id:existingId||uid(),
-    label:document.getElementById('mt-label').value.trim(),
+    id:existingId||uid(), label,
     description:document.getElementById('mt-desc').value.trim(),
-    areaId:document.getElementById('mt-area').value||null,
-    projectId:document.getElementById('mt-project').value||null,
+    projectId,
+    areaId:document.getElementById('mt-area').value||proj?.areaId||null,
     priority:document.getElementById('mt-pri').value||null,
     status:document.getElementById('mt-status').value||'todo',
     deadline:document.getElementById('mt-deadline').value||'',
+    activationDate:document.getElementById('mt-activation').value||'',
     estimatedMin:parseInt(document.getElementById('mt-dur').value)||0,
-    resources, dependsOn:[],
+    dependsOnTaskId:document.getElementById('mt-dep-task').value||null,
+    resources,
   };
   await API.saveTask(task);
   if(existingId) S.tasks=S.tasks.filter(t=>t.id!==existingId);
   S.tasks.push(task);
   closeModal();
-  renderPage(S.currentPage);
+  renderCfgPanel('tasks');
   showToast('Task saved');
 }
 
@@ -2164,18 +2255,41 @@ async function saveArea(existingId){
 // ── ACTIVITY MODAL ──
 function openActivityModal(id){
   const a=id?byId(S.activities,id):null;
+  // pre-select area from filter if creating new
+  const preArea=a?.areaId||(S.cfgAreaFilter!=='all'?S.cfgAreaFilter:'');
+  const PERIODS_LIST=['day','week','month','quarter','year'];
   openModal(`<div class="modal-title">${a?'Edit activity':'New activity'}<button onclick="closeModal()">✕</button></div>
   <div class="field"><label>Label</label><input type="text" id="mac-label" value="${esc(a?.label||'')}"></div>
-  <div class="field"><label>Area</label><select id="mac-area"><option value="">—</option>${areaOptions(a?.areaId||'')}</select></div>
+  <div class="field"><label>Area</label><select id="mac-area"><option value="">—</option>${areaOptions(preArea)}</select></div>
   <div class="field"><label>Description</label><textarea id="mac-desc">${esc(a?.description||'')}</textarea></div>
-  <div class="field"><label>Goals</label><input type="text" id="mac-goals" value="${esc(a?.goals||'')}"></div>
+  <div class="field"><label>Goals</label>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="number" id="mac-goals-num" min="1" value="${a?.goalsNum||''}" placeholder="e.g. 3" style="width:80px">
+      <span style="color:var(--ink3);font-size:12px;">× per</span>
+      <select id="mac-goals-period" style="flex:1">
+        <option value="">— period —</option>
+        ${PERIODS_LIST.map(p=>`<option value="${p}" ${a?.goalsPeriod===p?'selected':''}>${p}</option>`).join('')}
+      </select>
+    </div>
+  </div>
   <div class="modal-actions">
+    ${a?`<button class="btn danger" onclick="deleteEntity('activities','${a.id}')">delete</button>`:''}
     <button class="btn" onclick="closeModal()">cancel</button>
     <button class="btn primary" onclick="saveActivity('${id||''}')">save</button>
   </div>`);
 }
 async function saveActivity(existingId){
-  const ac={id:existingId||uid(),label:document.getElementById('mac-label').value.trim(),areaId:document.getElementById('mac-area').value||null,description:document.getElementById('mac-desc').value.trim(),goals:document.getElementById('mac-goals').value.trim(),projectIds:[],routineIds:[],eventIds:[]};
+  const label=document.getElementById('mac-label').value.trim();
+  const areaId=document.getElementById('mac-area').value||null;
+  if(!label){ showToast('Label is required'); return; }
+  // uniqueness check within area
+  const duplicate=S.activities.find(a=>a.label.toLowerCase()===label.toLowerCase()&&a.areaId===areaId&&a.id!==existingId);
+  if(duplicate){ showToast('An activity with this name already exists in this area'); return; }
+  const goalsNum=parseInt(document.getElementById('mac-goals-num').value)||null;
+  const goalsPeriod=document.getElementById('mac-goals-period').value||null;
+  const ac={id:existingId||uid(),label,areaId,
+    description:document.getElementById('mac-desc').value.trim(),
+    goalsNum,goalsPeriod,goals:goalsNum&&goalsPeriod?`${goalsNum}x/${goalsPeriod}`:''};
   await API.saveActivity(ac);
   if(existingId) S.activities=S.activities.filter(a=>a.id!==existingId);
   S.activities.push(ac);
@@ -2185,20 +2299,29 @@ async function saveActivity(existingId){
 // ── PROJECT MODAL ──
 function openProjectModal(id){
   const p=id?byId(S.projects,id):null;
+  const preArea=p?.areaId||(S.cfgAreaFilter!=='all'?S.cfgAreaFilter:'');
+  const preAct=p?.activityId||(S.cfgActivityFilter&&S.cfgActivityFilter!=='all'?S.cfgActivityFilter:'');
+  const depOpts='<option value="">— none —</option>'+S.projects.filter(x=>x.id!==id).map(x=>`<option value="${x.id}" ${p?.dependsOnProjectId===x.id?'selected':''}>${esc(x.label)}</option>`).join('');
   openModal(`<div class="modal-title">${p?'Edit project':'New project'}<button onclick="closeModal()">✕</button></div>
   <div class="field"><label>Label</label><input type="text" id="mp-label" value="${esc(p?.label||'')}"></div>
   <div class="field"><label>Description</label><textarea id="mp-desc">${esc(p?.description||'')}</textarea></div>
   <div class="field"><label>Goals</label><input type="text" id="mp-goals" value="${esc(p?.goals||'')}"></div>
   <div class="grid2">
-    <div class="field"><label>Area</label><select id="mp-area"><option value="">—</option>${areaOptions(p?.areaId||'')}</select></div>
+    <div class="field"><label>Area</label><select id="mp-area"><option value="">—</option>${areaOptions(preArea)}</select></div>
+    <div class="field"><label>Activity</label><select id="mp-activity"><option value="">—</option>${activityOptions(preAct)}</select></div>
+  </div>
+  <div class="grid2">
     <div class="field"><label>Status</label>
       <select id="mp-status">
-        <option value="todo"  ${(p?.status||'todo')==='todo' ?'selected':''}>To Do</option>
-        <option value="doing" ${p?.status==='doing'?'selected':''}>In Progress</option>
-        <option value="done"  ${p?.status==='done' ?'selected':''}>Done</option>
+        <option value="todo"       ${(p?.status||'todo')==='todo'      ?'selected':''}>To Do</option>
+        <option value="doing"      ${p?.status==='doing'     ?'selected':''}>In Progress</option>
+        <option value="waiting"    ${p?.status==='waiting'   ?'selected':''}>Waiting</option>
+        <option value="suspended"  ${p?.status==='suspended' ?'selected':''}>Suspended</option>
+        <option value="done"       ${p?.status==='done'      ?'selected':''}>Done</option>
       </select></div>
+    <div class="field"><label>Deadline</label><input type="date" id="mp-deadline" value="${p?.deadline||''}"></div>
   </div>
-  <div class="field"><label>Deadline</label><input type="date" id="mp-deadline" value="${p?.deadline||''}"></div>
+  <div class="field"><label>Depends on project</label><select id="mp-depends">${depOpts}</select></div>
   <div class="modal-actions">
     ${p?`<button class="btn danger" onclick="deleteEntity('projects','${p.id}')">delete</button>`:''}
     <button class="btn" onclick="closeModal()">cancel</button>
@@ -2206,7 +2329,16 @@ function openProjectModal(id){
   </div>`);
 }
 async function saveProject(existingId){
-  const proj={id:existingId||uid(),label:document.getElementById('mp-label').value.trim(),description:document.getElementById('mp-desc').value.trim(),goals:document.getElementById('mp-goals').value.trim(),areaId:document.getElementById('mp-area').value||null,status:document.getElementById('mp-status').value||'todo',deadline:document.getElementById('mp-deadline').value||'',taskIds:[],resources:[]};
+  const proj={id:existingId||uid(),
+    label:document.getElementById('mp-label').value.trim(),
+    description:document.getElementById('mp-desc').value.trim(),
+    goals:document.getElementById('mp-goals').value.trim(),
+    areaId:document.getElementById('mp-area').value||null,
+    activityId:document.getElementById('mp-activity').value||null,
+    status:document.getElementById('mp-status').value||'todo',
+    deadline:document.getElementById('mp-deadline').value||'',
+    dependsOnProjectId:document.getElementById('mp-depends').value||null,
+    taskIds:[],resources:[]};
   await API.saveProject(proj);
   if(existingId) S.projects=S.projects.filter(p=>p.id!==existingId);
   S.projects.push(proj);
@@ -2216,20 +2348,32 @@ async function saveProject(existingId){
 // ── ROUTINE MODAL ──
 function openRoutineModal(id){
   const r=id?byId(S.routines,id):null;
+  const preAct=r?.activityId||(S.cfgRoutineActFilter&&S.cfgRoutineActFilter!=='all'?S.cfgRoutineActFilter:'');
+  const FREQ_PERIODS=['day','week','month'];
+  const periodCheckboxes=S.periods.map(p=>`<label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;white-space:nowrap;">
+    <input type="checkbox" class="mr-period-cb" value="${p.id}" ${(r?.applicablePeriods||[]).includes(p.id)?'checked':''}> ${esc(p.label)}
+  </label>`).join('');
+  const eventOpts='<option value="">— none (use frequency) —</option>'+S.events.map(ev=>`<option value="${ev.id}" ${r?.eventId===ev.id?'selected':''}>${esc(ev.label)}</option>`).join('');
   openModal(`<div class="modal-title">${r?'Edit routine':'New routine'}<button onclick="closeModal()">✕</button></div>
   <div class="field"><label>Label</label><input type="text" id="mr-label" value="${esc(r?.label||'')}"></div>
-  <div class="field"><label>Activity</label><select id="mr-activity"><option value="">—</option>${activityOptions(r?.activityId||'')}</select></div>
+  <div class="field"><label>Activity</label><select id="mr-activity"><option value="">—</option>${activityOptions(preAct)}</select></div>
   <div class="field"><label>Description</label><textarea id="mr-desc">${esc(r?.description||'')}</textarea></div>
   <div class="grid2">
     <div class="field"><label>Frequency</label>
-      <select id="mr-freq">
-        <option value="daily"    ${r?.frequency==='daily'   ?'selected':''}>Daily</option>
-        <option value="2x-week"  ${r?.frequency==='2x-week' ?'selected':''}>2× week</option>
-        <option value="3x-week"  ${r?.frequency==='3x-week' ?'selected':''}>3× week</option>
-        <option value="weekly"   ${r?.frequency==='weekly'  ?'selected':''}>Weekly</option>
-        <option value="monthly"  ${r?.frequency==='monthly' ?'selected':''}>Monthly</option>
-      </select></div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="number" id="mr-freq-num" min="1" value="${r?.freqNum||1}" style="width:64px">
+        <span style="color:var(--ink3);font-size:12px;">× per</span>
+        <select id="mr-freq-period" style="flex:1">
+          ${FREQ_PERIODS.map(p=>`<option value="${p}" ${(r?.freqPeriod||'day')===p?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+    </div>
     <div class="field"><label>Duration (min)</label><input type="number" id="mr-dur" value="${r?.durationMin||''}" placeholder="30"></div>
+  </div>
+  <div class="field"><label>Trigger event (instead of frequency)</label><select id="mr-event">${eventOpts}</select></div>
+  <div class="field"><label>Applicable periods</label>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">${periodCheckboxes}</div>
+    <div style="font-size:10px;color:var(--ink3);margin-top:4px;">Leave all unchecked = applies to all periods</div>
   </div>
   <div class="field"><label>Resources (URL — description, one per line)</label><textarea id="mr-res" rows="2">${(r?.resources||[]).map(rv=>rv.url+(rv.desc?' — '+rv.desc:'')).join('\n')}</textarea></div>
   <div class="modal-actions">
@@ -2239,9 +2383,24 @@ function openRoutineModal(id){
   </div>`);
 }
 async function saveRoutine(existingId){
+  const label=document.getElementById('mr-label').value.trim();
+  if(!label){ showToast('Label is required'); return; }
   const resRaw=document.getElementById('mr-res').value.trim();
   const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[];
-  const routine={id:existingId||uid(),label:document.getElementById('mr-label').value.trim(),activityId:document.getElementById('mr-activity').value||null,description:document.getElementById('mr-desc').value.trim(),frequency:document.getElementById('mr-freq').value,durationMin:parseInt(document.getElementById('mr-dur').value)||30,resources};
+  const freqNum=parseInt(document.getElementById('mr-freq-num').value)||1;
+  const freqPeriod=document.getElementById('mr-freq-period').value||'day';
+  const applicablePeriods=[...document.querySelectorAll('.mr-period-cb:checked')].map(cb=>cb.value);
+  const routine={
+    id:existingId||uid(), label,
+    activityId:document.getElementById('mr-activity').value||null,
+    description:document.getElementById('mr-desc').value.trim(),
+    freqNum, freqPeriod,
+    frequency:`${freqNum}x-${freqPeriod}`,  // keep legacy field populated
+    durationMin:parseInt(document.getElementById('mr-dur').value)||30,
+    eventId:document.getElementById('mr-event').value||null,
+    applicablePeriods,
+    resources
+  };
   await API.saveRoutine(routine);
   if(existingId) S.routines=S.routines.filter(r=>r.id!==existingId);
   S.routines.push(routine);

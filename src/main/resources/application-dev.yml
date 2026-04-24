@@ -1,0 +1,8 @@
+# Local development overrides.
+# This file is safe to commit — it only contains dev defaults.
+# In production (Railway), APP_USER and APP_PASS are set as environment variables.
+
+app:
+  security:
+    username: admin
+    password: changeme
