@@ -602,6 +602,58 @@ input[type=range]{width:100%;accent-color:var(--accent);}
   }
   #cfg-area-filter { width: 100% !important; }
 }
+
+/* ── MOBILE BOTTOM NAVIGATION ── */
+#bottom-nav {
+  display: none;
+}
+@media (max-width: 600px) {
+  #bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--bg2);
+    border-top: 1px solid var(--line);
+    z-index: 300;
+    height: 56px;
+  }
+  .bnav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    cursor: pointer;
+    color: var(--ink3);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border: none;
+    background: none;
+    padding: 0;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bnav-item.active { color: var(--accent); }
+  .bnav-item .bnav-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+  /* Push page content up so bottom nav doesn't cover it */
+  #content { padding-bottom: 56px; }
+  /* Topbar: just logo + score badge + logout on mobile */
+  #topbar {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow: visible;
+    height: 48px;
+    padding: 0 12px;
+  }
+  #topbar-logo { padding: 0; line-height: 48px; }
+  #topbar-right { padding: 0; }
+}
+
 </style>
 </head>
 <body>
@@ -759,6 +811,26 @@ input[type=range]{width:100%;accent-color:var(--accent);}
   </div>
 
 </div><!-- /content -->
+
+<!-- Mobile bottom navigation -->
+<nav id="bottom-nav">
+  <button class="bnav-item active" data-page="today"   onclick="gotoPage('today')">
+    <span class="bnav-icon">◈</span><span>Today</span>
+  </button>
+  <button class="bnav-item" data-page="kanban"  onclick="gotoPage('kanban')">
+    <span class="bnav-icon">⊞</span><span>Kanban</span>
+  </button>
+  <button class="bnav-item" data-page="score"   onclick="gotoPage('score')">
+    <span class="bnav-icon">◉</span><span>Score</span>
+  </button>
+  <button class="bnav-item" data-page="history" onclick="gotoPage('history')">
+    <span class="bnav-icon">▦</span><span>History</span>
+  </button>
+  <button class="bnav-item" data-page="config"  onclick="gotoPage('config')">
+    <span class="bnav-icon">⊡</span><span>Configure</span>
+  </button>
+</nav>
+
 </div><!-- /app -->
 
 <!-- MODALS (injected by JS) -->
@@ -938,11 +1010,15 @@ function tickClock(){
 // ════════════════════════════════════════════════════════
 //  PAGE NAVIGATION
 // ════════════════════════════════════════════════════════
-function gotoPage(name){
+async function gotoPage(name){
   S.currentPage=name;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===name));
+  // sync bottom nav on mobile
+  document.querySelectorAll('.bnav-item').forEach(t=>t.classList.toggle('active',t.dataset.page===name));
+  // always reload fresh data from server before rendering
+  await loadAll();
   renderPage(name);
 }
 
