@@ -35,21 +35,20 @@
       <artifactId>spring-boot-starter-data-jpa</artifactId>
     </dependency>
 
-    <!-- H2 for dev (switch to PostgreSQL in prod) -->
+    <!-- H2 for dev only (not included in prod build) -->
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
       <scope>runtime</scope>
+      <!-- Keep H2 for local dev — prod profile uses PostgreSQL -->
     </dependency>
 
-    <!-- PostgreSQL driver (comment out H2 above and enable this for prod) -->
-    <!--
+    <!-- PostgreSQL driver (active for prod) -->
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
     </dependency>
-    -->
 
     <!-- Lombok -->
     <dependency>
