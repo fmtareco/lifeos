@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lifeOS — login</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400&family=Fraunces:ital,opsz,wght@1,9..144,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:     #f5f0e8;
+    --card:   #fdfaf5;
+    --ink:    #1a1614;
+    --ink2:   #5a5048;
+    --ink3:   #8a8078;
+    --line:   #d8d0c4;
+    --line2:  #ccc4b4;
+    --accent: #c84b2f;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .login-box {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 40px 36px 36px;
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .logo {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 32px;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+
+  .tagline {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    margin-bottom: 32px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 16px;
+  }
+
+  label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink3);
+  }
+
+  input {
+    background: var(--bg);
+    border: 1px solid var(--line2);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  input:focus { border-color: var(--accent); }
+
+  .error-msg {
+    background: rgba(200, 75, 47, 0.08);
+    border: 1px solid rgba(200, 75, 47, 0.3);
+    color: var(--accent);
+    font-size: 11px;
+    padding: 9px 12px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+  button[type=submit] {
+    width: 100%;
+    background: var(--accent);
+    color: #fdfaf5;
+    border: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    padding: 11px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.15s;
+  }
+  button[type=submit]:hover { background: #b03a20; }
+
+  .footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-size: 10px;
+    color: var(--ink3);
+    text-align: center;
+    letter-spacing: 0.06em;
+  }
+</style>
+</head>
+<body>
+
+<div class="login-box">
+  <div class="logo">lifeOS.</div>
+  <div class="tagline">personal life operating system</div>
+
+  <div class="error-msg" id="error-msg">
+    incorrect username or password
+  </div>
+
+  <form method="post" action="/login">
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username"
+             autocomplete="username" autofocus required>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password"
+             autocomplete="current-password" required>
+    </div>
+    <!-- Spring Security CSRF token is handled automatically by the form POST -->
+    <button type="submit">sign in →</button>
+  </form>
+
+  <div class="footer">your data · your device · your life</div>
+</div>
+
+<script>
+  // Show error message if redirected back with ?error=true
+  if (new URLSearchParams(window.location.search).has('error')) {
+    document.getElementById('error-msg').classList.add('show');
+  }
+</script>
+
+</body>
+</html>

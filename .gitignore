@@ -1,0 +1,10 @@
+target/
+data/
+*.mv.db
+*.trace.db
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+.idea/
+*.iml
+.DS_Store

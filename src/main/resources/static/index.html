@@ -1,0 +1,2267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lifeOS</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
+<link rel="manifest" href="/manifest.json">
+<script src="/api.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ════════════════════════════════════════════════════
+   RESET & TOKENS
+════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f0e8;
+  --bg2:#f0ebe0;
+  --bg3:#ece6d8;
+  --bg4:#e8e0d0;
+  --line:#d8d0c4;
+  --line2:#ccc4b4;
+  --ink:#1a1614;
+  --ink2:#5a5048;
+  --ink3:#8a8078;
+  --card:#fdfaf5;
+  --accent:#c84b2f;
+  --accent2:#2f6bc8;
+  --accent3:#4a7c59;
+  --danger:#c84b2f;
+  --p1:#c84b2f;
+  --p2:#d4872a;
+  --p3:#2f6bc8;
+  --area-work:#c84b2f;
+  --area-finance:#b8760a;
+  --area-home:#4a7c59;
+  --area-health:#2f6bc8;
+  --area-growth:#7a4fa3;
+  --area-social:#c87a2f;
+  --area-culture:#2f8a8a;
+  --area-leisure:#8a6040;
+  --score-a:#4a7c59;
+  --score-b:#c8963a;
+  --score-c:#c84b2f;
+  --font-display:'Fraunces',serif;
+  --font-mono:'DM Mono',monospace;
+  --r:2px;
+}
+
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--font-mono);font-size:13px}
+
+/* ════════════════════════════════════════════════════
+   LAYOUT
+════════════════════════════════════════════════════ */
+#app{display:grid;grid-template-rows:52px 1fr;height:100vh}
+
+/* ── TOP BAR ── */
+#topbar{
+  display:flex;align-items:center;gap:0;
+  border-bottom:1px solid var(--line);
+  background:var(--bg2);
+  padding:0 24px;
+  position:relative;z-index:100;
+}
+#topbar-logo{
+  font-family:var(--font-display);font-style:italic;font-size:18px;
+  color:var(--accent);letter-spacing:-0.5px;margin-right:32px;flex-shrink:0;
+}
+.tab{
+  height:52px;display:flex;align-items:center;padding:0 18px;
+  font-size:11px;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--ink3);cursor:pointer;border-bottom:2px solid transparent;
+  transition:all 0.15s;white-space:nowrap;
+}
+.tab:hover{color:var(--ink2);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+#topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px;}
+#clock{font-size:12px;color:var(--ink3);letter-spacing:0.08em;}
+#day-score-badge{
+  font-size:11px;padding:4px 12px;letter-spacing:0.08em;
+  border:1px solid var(--line2);cursor:pointer;
+  transition:all 0.2s;
+}
+
+/* ── MAIN CONTENT ── */
+#content{overflow:hidden;position:relative;}
+.page{display:none;height:100%;overflow-y:auto;padding:28px 32px;}
+.page.active{display:block;}
+
+/* ════════════════════════════════════════════════════
+   SHARED COMPONENTS
+════════════════════════════════════════════════════ */
+.page-title{
+  font-family:var(--font-display);font-style:italic;font-weight:200;
+  font-size:22px;color:var(--ink);margin-bottom:24px;
+  display:flex;align-items:baseline;gap:14px;
+}
+.page-title small{font-family:var(--font-mono);font-size:10px;color:var(--ink3);letter-spacing:0.12em;text-transform:uppercase;font-style:normal;}
+
+.section-head{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:12px;padding-bottom:8px;
+  border-bottom:1px solid var(--line);
+}
+.section-head h3{font-family:var(--font-display);font-style:italic;font-weight:200;font-size:16px;color:var(--ink2);}
+
+.btn{
+  background:none;border:1px solid var(--line2);
+  color:var(--ink2);font-family:var(--font-mono);font-size:11px;
+  padding:5px 14px;cursor:pointer;letter-spacing:0.06em;
+  transition:all 0.15s;white-space:nowrap;border-radius:var(--r);
+}
+.btn:hover{border-color:var(--accent);color:var(--accent);}
+.btn.primary{background:var(--accent);color:#fdfaf5;border-color:var(--accent);}
+.btn.primary:hover{background:#b03a20;border-color:#b03a20;}
+.btn.danger{border-color:var(--danger);color:var(--danger);}
+.btn.danger:hover{background:var(--danger);color:white;}
+.btn.sm{font-size:10px;padding:3px 9px;}
+.btn.ghost{border-color:transparent;color:var(--ink3);}
+.btn.ghost:hover{border-color:var(--line2);color:var(--ink);}
+
+.card{background:var(--card);border:1px solid var(--line);padding:14px 16px;border-radius:var(--r);}
+
+/* form elements */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+.field label{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink3);}
+input[type=text],input[type=number],input[type=date],input[type=url],textarea,select{
+  background:var(--bg3);border:1px solid var(--line2);
+  color:var(--ink);font-family:var(--font-mono);font-size:12px;
+  padding:7px 10px;outline:none;border-radius:var(--r);
+  transition:border-color 0.15s;width:100%;
+}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);}
+textarea{resize:vertical;min-height:60px;line-height:1.5;}
+select option{background:var(--bg2);color:var(--ink);}
+input[type=range]{width:100%;accent-color:var(--accent);}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+
+/* tags */
+.tag{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:9px;letter-spacing:0.07em;text-transform:uppercase;
+  padding:2px 8px;border-radius:2px;
+}
+.tag-p1{background:rgba(200,75,47,.15);color:var(--p1);}
+.tag-p2{background:rgba(212,135,42,.15);color:var(--p2);}
+.tag-p3{background:rgba(58,139,200,.15);color:var(--p3);}
+.tag-area{color:white;opacity:.85;}
+.tag-done{background:rgba(122,158,126,.15);color:var(--accent3);}
+
+/* area colours helper */
+.ac-work{color:var(--area-work)!important}
+.ac-finance{color:var(--area-finance)!important}
+.ac-home{color:var(--area-home)!important}
+.ac-health{color:var(--area-health)!important}
+.ac-growth{color:var(--area-growth)!important}
+.ac-social{color:var(--area-social)!important}
+.ac-culture{color:var(--area-culture)!important}
+.ac-leisure{color:var(--area-leisure)!important}
+
+/* score ring */
+.score-ring{position:relative;display:inline-flex;align-items:center;justify-content:center;}
+.score-ring svg{transform:rotate(-90deg);}
+.score-ring .score-val{position:absolute;font-family:var(--font-display);font-style:italic;line-height:1;}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px;}
+
+/* modal */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(26,22,20,.45);
+  display:flex;align-items:center;justify-content:center;
+  z-index:500;opacity:0;pointer-events:none;transition:opacity 0.2s;
+}
+.modal-overlay.open{opacity:1;pointer-events:auto;}
+.modal{
+  background:var(--bg2);border:1px solid var(--line2);
+  padding:24px;min-width:420px;max-width:640px;width:90%;
+  max-height:85vh;overflow-y:auto;border-radius:var(--r);
+  transform:translateY(8px);transition:transform 0.2s;
+}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-title{
+  font-family:var(--font-display);font-style:italic;font-weight:200;
+  font-size:18px;margin-bottom:20px;color:var(--ink);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-title button{background:none;border:none;color:var(--ink3);cursor:pointer;font-size:18px;line-height:1;}
+.modal-title button:hover{color:var(--ink);}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);}
+
+/* toast */
+#toast{
+  position:fixed;bottom:24px;right:24px;
+  background:var(--bg4);border:1px solid var(--line2);
+  color:var(--ink);font-size:11px;padding:10px 18px;
+  letter-spacing:0.06em;opacity:0;pointer-events:none;
+  transition:opacity 0.2s;z-index:999;border-radius:var(--r);
+}
+#toast.show{opacity:1;}
+
+/* ════════════════════════════════════════════════════
+   TODAY PAGE
+════════════════════════════════════════════════════ */
+#today-layout{display:grid;grid-template-columns:1fr 340px;gap:20px;height:calc(100% - 60px);}
+#today-main{overflow-y:auto;padding-right:8px;}
+#today-sidebar{overflow-y:auto;border-left:1px solid var(--line);padding-left:20px;}
+
+.agenda-item{
+  display:grid;grid-template-columns:64px 1fr auto;
+  gap:12px;align-items:start;
+  padding:10px 14px;border:1px solid var(--line);
+  background:var(--card);margin-bottom:6px;
+  border-radius:var(--r);transition:all 0.15s;position:relative;
+}
+.agenda-item:hover{border-color:var(--line2);}
+.agenda-item.done-item{opacity:.45;}
+.agenda-item.done-item .ai-name{text-decoration:line-through;color:var(--ink3);}
+.agenda-item.skipped{opacity:.35;border-style:dashed;}
+
+.ai-time{font-size:11px;color:var(--ink3);padding-top:2px;line-height:1.5;}
+.ai-body{}
+.ai-name{font-size:13px;margin-bottom:4px;line-height:1.3;}
+.ai-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.ai-actions{display:flex;gap:5px;align-items:start;padding-top:2px;}
+
+.ai-left-bar{
+  position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:2px 0 0 2px;
+}
+
+/* score sidebar widgets */
+.score-widget{
+  background:var(--bg3);border:1px solid var(--line);
+  padding:14px;margin-bottom:12px;border-radius:var(--r);
+}
+.score-widget h4{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px;}
+
+.area-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.area-bar-label{font-size:10px;color:var(--ink2);width:72px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.area-bar-track{flex:1;height:5px;background:var(--line);border-radius:3px;overflow:hidden;}
+.area-bar-fill{height:100%;border-radius:3px;transition:width 0.4s;}
+.area-bar-val{font-size:9px;color:var(--ink3);width:28px;text-align:right;}
+
+/* ════════════════════════════════════════════════════
+   KANBAN PAGE
+════════════════════════════════════════════════════ */
+.kanban-wrap{display:flex;gap:14px;height:calc(100% - 60px);overflow-x:auto;padding-bottom:8px;}
+.k-col{
+  min-width:260px;max-width:260px;
+  background:var(--bg3);border:1px solid var(--line);
+  border-radius:var(--r);display:flex;flex-direction:column;
+}
+.k-col-head{
+  padding:10px 14px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;
+  font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink2);
+  flex-shrink:0;
+}
+.k-col-head .k-score{margin-left:auto;font-family:var(--font-display);font-style:italic;font-size:15px;}
+.k-cards{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}
+.k-card{
+  background:var(--card);border:1px solid var(--line);
+  padding:10px 12px;border-radius:var(--r);cursor:grab;
+  transition:box-shadow 0.15s,transform 0.1s;
+}
+.k-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);}
+.k-card.dragging{opacity:.4;transform:rotate(1.5deg);cursor:grabbing;}
+.k-card-name{font-size:12px;line-height:1.35;margin-bottom:6px;}
+.k-card-meta{display:flex;gap:5px;flex-wrap:wrap;}
+.k-drop-zone{min-height:50px;transition:background 0.15s;}
+.k-drop-zone.drag-over{background:rgba(200,135,58,.07);outline:1px dashed var(--accent);}
+.k-add-btn{width:100%;background:none;border:none;border-top:1px dashed var(--line);
+  color:var(--ink3);font-family:var(--font-mono);font-size:10px;
+  padding:7px;cursor:pointer;letter-spacing:0.06em;transition:color 0.15s;}
+.k-add-btn:hover{color:var(--accent);}
+
+/* day score chromatic strip */
+.score-strip{
+  height:4px;border-radius:2px;margin-top:4px;
+  background:linear-gradient(90deg,var(--score-c),var(--score-b),var(--score-a));
+  position:relative;
+}
+.score-strip-cursor{
+  position:absolute;top:-3px;width:10px;height:10px;
+  border-radius:50%;background:var(--ink);border:2px solid var(--bg);
+  transform:translateX(-50%);transition:left 0.4s;
+}
+
+/* ════════════════════════════════════════════════════
+   SCORE / ANALYTICS PAGE
+════════════════════════════════════════════════════ */
+.score-grid{display:grid;grid-template-columns:200px 1fr;gap:20px;height:calc(100% - 60px);}
+.score-nav{border-right:1px solid var(--line);padding-right:16px;overflow-y:auto;}
+.score-nav-item{
+  padding:8px 12px;cursor:pointer;border-left:2px solid transparent;
+  font-size:11.5px;color:var(--ink3);transition:all 0.1s;border-radius:0 2px 2px 0;
+}
+.score-nav-item:hover{color:var(--ink2);background:rgba(0,0,0,.04);}
+.score-nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(200,75,47,.06);}
+
+.period-tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--line);}
+.period-tab{
+  padding:7px 16px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;
+  color:var(--ink3);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;
+}
+.period-tab:hover{color:var(--ink2);}
+.period-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+.bar-chart{display:flex;gap:4px;align-items:flex-end;height:120px;margin:12px 0;}
+.bar-col{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;}
+.bar-fill{width:100%;border-radius:2px 2px 0 0;min-height:3px;transition:height 0.4s;}
+.bar-label{font-size:9px;color:var(--ink3);letter-spacing:0.06em;}
+.bar-val{font-size:9px;color:var(--ink2);}
+
+/* ════════════════════════════════════════════════════
+   CONFIGURE PAGE
+════════════════════════════════════════════════════ */
+.cfg-layout{display:grid;grid-template-columns:180px 1fr;gap:0;height:calc(100% - 60px);}
+.cfg-nav{border-right:1px solid var(--line);padding:0 0 0 0;overflow-y:auto;}
+.cfg-nav-item{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 16px;cursor:pointer;
+  border-left:2px solid transparent;font-size:11.5px;
+  color:var(--ink3);transition:all 0.1s;
+}
+.cfg-nav-item:hover{color:var(--ink2);background:rgba(0,0,0,.04);}
+.cfg-nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(200,75,47,.05);}
+.cfg-nav-item .cfg-icon{width:16px;text-align:center;flex-shrink:0;}
+
+.cfg-panel{display:none;padding:0 0 0 24px;overflow-y:auto;height:100%;}
+.cfg-panel.active{display:block;}
+
+.entity-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.entity-row{
+  display:flex;align-items:center;gap:10px;
+  background:var(--card);border:1px solid var(--line);
+  padding:10px 14px;border-radius:var(--r);
+  transition:border-color 0.15s;
+}
+.entity-row:hover{border-color:var(--line2);}
+.entity-row-main{flex:1;min-width:0;}
+.entity-row-name{font-size:12.5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.entity-row-meta{font-size:10px;color:var(--ink3);}
+.entity-actions{display:flex;gap:5px;flex-shrink:0;}
+
+/* balance sliders */
+.balance-area-row{
+  background:var(--card);border:1px solid var(--line);
+  padding:12px 16px;margin-bottom:8px;border-radius:var(--r);
+}
+.bal-area-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.bal-area-name{font-size:12px;flex:1;}
+.bal-pct{font-family:var(--font-display);font-style:italic;font-size:18px;color:var(--accent);}
+
+/* ════════════════════════════════════════════════════
+   HISTORY PAGE
+════════════════════════════════════════════════════ */
+.history-row{
+  display:grid;grid-template-columns:90px 1fr auto;
+  gap:12px;align-items:center;
+  padding:10px 14px;border:1px solid var(--line);
+  background:var(--card);margin-bottom:5px;border-radius:var(--r);
+  cursor:pointer;transition:border-color 0.15s;
+}
+.history-row:hover{border-color:var(--line2);}
+.hist-date{font-size:11px;color:var(--ink3);}
+.hist-summary{font-size:12px;}
+.hist-score{font-family:var(--font-display);font-style:italic;font-size:18px;}
+
+/* inline log entry */
+.log-entry{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;background:var(--bg3);
+  border-bottom:1px solid var(--line);font-size:12px;
+}
+.log-entry:last-child{border-bottom:none;}
+.log-time{font-size:10px;color:var(--ink3);width:48px;flex-shrink:0;}
+.log-name{flex:1;}
+.log-dur{font-size:10px;color:var(--ink2);white-space:nowrap;}
+.log-perf{font-family:var(--font-display);font-style:italic;font-size:14px;}
+
+/* ════════════════════════════════════════════════════
+   MISC UTILITIES
+════════════════════════════════════════════════════ */
+.empty{padding:32px;text-align:center;color:var(--ink3);font-size:11px;font-style:italic;}
+.divider{border:none;border-top:1px solid var(--line);margin:16px 0;}
+.badge{
+  display:inline-block;font-size:9px;letter-spacing:0.08em;
+  text-transform:uppercase;padding:2px 7px;border-radius:2px;
+  background:var(--line);color:var(--ink3);
+}
+.pill-group{display:flex;gap:5px;flex-wrap:wrap;}
+.resource-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;color:var(--accent2);
+  background:rgba(58,139,200,.1);padding:2px 8px;border-radius:2px;
+  text-decoration:none;
+}
+.resource-chip:hover{background:rgba(58,139,200,.2);}
+
+/* log action modal specifics */
+.perf-stars{display:flex;gap:4px;}
+.perf-star{
+  font-size:18px;cursor:pointer;color:var(--line2);
+  transition:color 0.1s;
+}
+.perf-star.lit{color:var(--accent);}
+
+.inline-list{list-style:none;display:flex;flex-direction:column;gap:4px;}
+.inline-list li{
+  display:flex;align-items:center;gap:8px;
+  font-size:11.5px;padding:5px 8px;
+  background:var(--bg3);border-radius:var(--r);
+}
+.inline-list li span{flex:1;}
+
+/* weight total indicator */
+.weight-total{
+  display:flex;align-items:center;gap:8px;
+  font-size:11px;padding:8px 12px;
+  background:var(--bg3);border-radius:var(--r);
+  margin-bottom:12px;border:1px solid var(--line);
+}
+.weight-ok{color:var(--accent3);}
+.weight-warn{color:var(--p2);}
+.weight-err{color:var(--danger);}
+
+/* ════════════════════════════════════════════════════
+   RESPONSIVE — TABLET  (≤ 900px)
+════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  /* Shrink sidebar */
+  .workspace { grid-template-columns: 160px 1fr; }
+  .cfg-layout { grid-template-columns: 140px 1fr; }
+  .score-grid { grid-template-columns: 140px 1fr; }
+
+  /* Tighter padding */
+  .page { padding: 20px 18px; }
+  main  { padding: 20px 18px; }
+
+  /* Today layout: stack sidebar below on tablet */
+  #today-layout { grid-template-columns: 1fr; }
+  #today-sidebar {
+    border-left: none;
+    border-top: 1px solid var(--line);
+    padding-left: 0;
+    padding-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .kanban-columns { grid-template-columns: 1fr 1fr; }
+  .grid3 { grid-template-columns: 1fr 1fr; }
+}
+
+/* ════════════════════════════════════════════════════
+   RESPONSIVE — PHONE  (≤ 600px)
+════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+
+  /* ── Top bar: logo + hamburger only, tabs scroll below ── */
+  #topbar {
+    padding: 0 14px;
+    flex-wrap: wrap;
+    height: auto;
+    gap: 0;
+  }
+  #topbar-logo { font-size: 16px; margin-right: 12px; padding: 12px 0; }
+  #topbar-right { order: 2; padding: 6px 0; gap: 8px; }
+  #clock { display: none; }
+
+  /* Tabs scroll horizontally in a strip below the logo */
+  .tab {
+    height: 38px;
+    padding: 0 12px;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  /* Wrap tabs into their own scrollable row */
+  #topbar { position: relative; }
+  .tab:first-of-type { margin-left: -14px; } /* flush left */
+
+  /* ── Pages ── */
+  .page { padding: 14px 12px; height: auto; overflow-y: auto; }
+  #content { overflow-y: auto; }
+
+  /* ── Page title ── */
+  .page-title {
+    font-size: 18px;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .page-title > div { margin-left: 0 !important; width: 100%; }
+
+  /* ── Workspace: hide sidebar, full width content ── */
+  .workspace { grid-template-columns: 1fr; }
+  aside { display: none; }
+
+  /* ── Config layout: hide left nav, use dropdown instead ── */
+  .cfg-layout { grid-template-columns: 1fr; }
+  .cfg-nav { display: none; }
+  .cfg-panel { padding: 0; }
+  .cfg-panel.active { display: block; }
+
+  /* Show cfg nav as a select at top */
+  #cfg-mobile-nav { display: block !important; }
+
+  /* ── Score layout ── */
+  .score-grid { grid-template-columns: 1fr; }
+  .score-nav {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 0 0 10px 0;
+    margin-bottom: 14px;
+  }
+  .score-nav-item {
+    padding: 5px 12px;
+    border-left: none !important;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    font-size: 11px;
+  }
+  .score-nav-item.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  /* ── Today layout: single column ── */
+  #today-layout { grid-template-columns: 1fr; gap: 14px; height: auto; }
+  #today-main { overflow-y: visible; padding-right: 0; }
+  #today-sidebar {
+    border-left: none;
+    border-top: 1px solid var(--line);
+    padding-left: 0;
+    padding-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .score-widget { margin-bottom: 0; }
+
+  /* ── Agenda items: tighter ── */
+  .agenda-item { grid-template-columns: 48px 1fr auto; gap: 8px; padding: 8px 10px; }
+  .ai-time { font-size: 10px; }
+
+  /* ── Kanban: single column scroll ── */
+  .kanban-wrap { flex-direction: column; height: auto; overflow-x: visible; }
+  .k-col { min-width: 100%; max-width: 100%; }
+  .kanban-columns { grid-template-columns: 1fr; }
+
+  /* ── Grids: single column ── */
+  .grid2 { grid-template-columns: 1fr; }
+  .grid3 { grid-template-columns: 1fr; }
+
+  /* ── Modal: full screen on phone ── */
+  .modal {
+    min-width: unset;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 0;
+    margin: auto 0 0 0;
+  }
+  .modal-overlay {
+    align-items: flex-end;
+  }
+
+  /* ── Entity rows: wrap actions ── */
+  .entity-row { flex-wrap: wrap; gap: 6px; }
+  .entity-actions { width: 100%; justify-content: flex-end; }
+
+  /* ── Buttons: bigger tap targets ── */
+  .btn { padding: 7px 14px; font-size: 11px; }
+  .btn.sm { padding: 6px 10px; font-size: 11px; }
+
+  /* ── History rows ── */
+  .history-row { grid-template-columns: 80px 1fr auto; gap: 8px; padding: 8px 10px; }
+
+  /* ── Balance sliders ── */
+  .balance-area-row { padding: 10px 12px; }
+
+  /* ── Period tabs ── */
+  .period-tabs { overflow-x: auto; }
+  .period-tab { padding: 6px 12px; white-space: nowrap; }
+
+  /* ── Config filter bar ── */
+  #page-config .page-title > div {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  #cfg-area-filter { width: 100% !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- TOP BAR -->
+<div id="topbar" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+  <div id="topbar-logo">lifeOS.</div>
+  <div class="tab active" data-page="today"   onclick="gotoPage('today')">Today</div>
+  <div class="tab"        data-page="kanban"  onclick="gotoPage('kanban')">Kanban</div>
+  <div class="tab"        data-page="score"   onclick="gotoPage('score')">Score</div>
+  <div class="tab"        data-page="history" onclick="gotoPage('history')">History</div>
+  <div class="tab"        data-page="config"  onclick="gotoPage('config')">Configure</div>
+  <div id="topbar-right">
+    <span id="clock"></span>
+    <div id="day-score-badge" class="badge" onclick="gotoPage('score')">day — —</div>
+    <button class="btn sm ghost" onclick="API.logout()" title="sign out"
+      style="font-size:11px;padding:4px 10px;border-color:var(--line);">⎋ out</button>
+  </div>
+</div>
+
+<!-- PAGES -->
+<div id="content">
+
+  <!-- ══════════ TODAY ══════════ -->
+  <div class="page active" id="page-today">
+    <div class="page-title">
+      <span id="today-heading">Today</span>
+      <small id="today-date-sub"></small>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="btn sm" onclick="generateAgenda()">↺ auto-agenda</button>
+        <button class="btn sm primary" onclick="openLogModal(null)">+ log action</button>
+      </div>
+    </div>
+    <div id="today-layout">
+      <div id="today-main">
+        <div id="agenda-list"><div class="empty">No agenda yet. Click "auto-agenda" to generate one, or "+ log action" to record what you did.</div></div>
+      </div>
+      <div id="today-sidebar">
+        <div class="score-widget">
+          <h4>Day score</h4>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <canvas id="score-donut" width="72" height="72"></canvas>
+            <div>
+              <div style="font-family:var(--font-display);font-style:italic;font-size:32px;" id="score-big">—</div>
+              <div style="font-size:10px;color:var(--ink3);margin-top:2px;" id="score-label">no data</div>
+            </div>
+          </div>
+          <div class="score-strip" style="margin-top:10px;"><div class="score-strip-cursor" id="score-cursor" style="left:50%"></div></div>
+        </div>
+        <div class="score-widget">
+          <h4>Area balance today</h4>
+          <div id="area-balance-bars"></div>
+        </div>
+        <div class="score-widget">
+          <h4>Time logged</h4>
+          <div id="time-logged-summary" style="font-size:11px;color:var(--ink2);line-height:1.8;"></div>
+        </div>
+        <div class="score-widget">
+          <h4>Upcoming deadlines</h4>
+          <div id="deadlines-widget" style="font-size:11px;line-height:2;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ KANBAN ══════════ -->
+  <div class="page" id="page-kanban">
+    <div class="page-title">
+      Kanban
+      <small>drag to move status</small>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <select id="kanban-area-filter" style="width:160px;" onchange="renderKanban()">
+          <option value="all">All areas</option>
+        </select>
+        <button class="btn sm primary" onclick="openTaskModal(null)">+ task</button>
+      </div>
+    </div>
+    <div class="kanban-wrap" id="kanban-wrap"></div>
+  </div>
+
+  <!-- ══════════ SCORE ══════════ -->
+  <div class="page" id="page-score">
+    <div class="page-title">Score &amp; Analytics</div>
+    <div class="score-grid">
+      <div class="score-nav">
+        <div class="score-nav-item active" onclick="setScoreView('overview')" data-sv="overview">Overview</div>
+        <div class="score-nav-item" onclick="setScoreView('areas')" data-sv="areas">By Area</div>
+        <div class="score-nav-item" onclick="setScoreView('activities')" data-sv="activities">By Activity</div>
+        <div class="score-nav-item" onclick="setScoreView('balance')" data-sv="balance">Balance</div>
+      </div>
+      <div id="score-content" style="overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- ══════════ HISTORY ══════════ -->
+  <div class="page" id="page-history">
+    <div class="page-title">
+      History
+      <small>past days log</small>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="btn sm" onclick="exportMD()">↓ export .md</button>
+        <button class="btn sm primary" onclick="exportXLSX()">↓ export .xlsx</button>
+      </div>
+    </div>
+    <div id="history-list"></div>
+  </div>
+
+  <!-- ══════════ CONFIGURE ══════════ -->
+  <div class="page" id="page-config">
+    <div class="page-title">
+      Configure
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-style:normal;">filter area</span>
+        <select id="cfg-area-filter" onchange="setCfgAreaFilter(this.value)" style="width:180px;font-size:11px;padding:5px 8px;">
+          <option value="all">All areas</option>
+        </select>
+        <button class="btn sm ghost" onclick="setCfgAreaFilter('all')" title="clear filter" style="padding:5px 8px;">✕ clear</button>
+      </div>
+    </div>
+    <!-- Mobile-only panel selector -->
+    <select id="cfg-mobile-nav" onchange="setCfgPanel(this.value)"
+      style="display:none;width:100%;margin-bottom:14px;font-size:13px;padding:8px 10px;">
+      <option value="areas">◈ Areas</option>
+      <option value="activities">◉ Activities</option>
+      <option value="projects">◇ Projects</option>
+      <option value="tasks">□ Tasks</option>
+      <option value="routines">↻ Routines</option>
+      <option value="events">◎ Events</option>
+      <option value="balance">⊡ Balance</option>
+      <option value="periods">▦ Periods</option>
+    </select>
+    <div class="cfg-layout">
+      <div class="cfg-nav">
+        <div class="cfg-nav-item active" onclick="setCfgPanel('areas')"      data-cp="areas">      <span class="cfg-icon">◈</span> Areas</div>
+        <div class="cfg-nav-item"        onclick="setCfgPanel('activities')" data-cp="activities"> <span class="cfg-icon">◉</span> Activities</div>
+        <div class="cfg-nav-item"        onclick="setCfgPanel('projects')"   data-cp="projects">   <span class="cfg-icon">◇</span> Projects</div>
+        <div class="cfg-nav-item"        onclick="setCfgPanel('tasks')"      data-cp="tasks">      <span class="cfg-icon">□</span> Tasks</div>
+        <div class="cfg-nav-item"        onclick="setCfgPanel('routines')"   data-cp="routines">   <span class="cfg-icon">↻</span> Routines</div>
+        <div class="cfg-nav-item"        onclick="setCfgPanel('events')"     data-cp="events">     <span class="cfg-icon">◎</span> Events</div>
+        <div class="cfg-nav-item"        onclick="setCfgPanel('balance')"    data-cp="balance">    <span class="cfg-icon">⊡</span> Balance</div>
+        <div class="cfg-nav-item"        onclick="setCfgPanel('periods')"    data-cp="periods">    <span class="cfg-icon">▦</span> Periods</div>
+      </div>
+      <div id="cfg-panels">
+        <div class="cfg-panel active" id="cfg-areas"></div>
+        <div class="cfg-panel" id="cfg-activities"></div>
+        <div class="cfg-panel" id="cfg-projects"></div>
+        <div class="cfg-panel" id="cfg-tasks"></div>
+        <div class="cfg-panel" id="cfg-routines"></div>
+        <div class="cfg-panel" id="cfg-events"></div>
+        <div class="cfg-panel" id="cfg-balance"></div>
+        <div class="cfg-panel" id="cfg-periods"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+</div><!-- /app -->
+
+<!-- MODALS (injected by JS) -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOnOverlay(event)">
+  <div class="modal" id="modal-box"></div>
+</div>
+
+<div id="toast"></div>
+<script>
+'use strict';
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+const S = {
+  areas:[],activities:[],projects:[],tasks:[],
+  routines:[],events:[],periods:[],balance:[],actions:[],
+  todayDate: todayISO(),
+  currentPage:'today',
+  cfgPanel:'areas',
+  cfgAreaFilter:'all',
+  scoreView:'overview',
+  scorePeriod:'day',
+  kanbanDragId:null,
+};
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+// ════════════════════════════════════════════════════════
+//  LOAD ALL FROM API
+// ════════════════════════════════════════════════════════
+async function loadAll(){
+  const [areas,activities,projects,tasks,routines,events,periods,balance,actions] = await Promise.all([
+    API.getAreas(), API.getActivities(), API.getProjects(), API.getTasks(),
+    API.getRoutines(), API.getEvents(), API.getPeriods(), API.getBalance(),
+    API.getActions(),
+  ]);
+  S.areas=areas; S.activities=activities; S.projects=projects; S.tasks=tasks;
+  S.routines=routines; S.events=events; S.periods=periods; S.balance=balance;
+  S.actions=actions;
+}
+
+// ════════════════════════════════════════════════════════
+//  UTILITIES
+// ════════════════════════════════════════════════════════
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(x){ return String(x||''); }
+function fmtDate(iso){ if(!iso) return ''; const d=new Date(iso+'T12:00:00'); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); }
+function fmtMin(m){ if(!m) return ''; const h=Math.floor(m/60),mn=m%60; return h>0?`${h}h${mn>0?mn+'m':''}`:`${mn}m`; }
+function dayOfWeek(iso){ return new Date(iso+'T12:00:00').getDay(); }
+function daysUntil(iso){ if(!iso) return null; return Math.round((new Date(iso)-new Date(todayISO()+'T12:00:00'))/(86400000)); }
+function byId(arr,id){ return arr.find(x=>x.id===id); }
+function areaOf(id){ return byId(S.areas,id); }
+function areaColor(id){ return areaOf(id)?.color||'#888'; }
+function activityOf(id){ return byId(S.activities,id); }
+
+function showToast(msg,dur=2200){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+// ════════════════════════════════════════════════════════
+//  SCORING ENGINE  (client-side, using loaded state)
+// ════════════════════════════════════════════════════════
+function getPeriodForDate(iso){
+  const dow=['sun','mon','tue','wed','thu','fri','sat'][new Date(iso+'T12:00:00').getDay()];
+  return S.periods.find(p=>p.dayTypes&&p.dayTypes.split(',').includes(dow)) || S.periods[0] || {id:'_',availableHours:16};
+}
+
+function getBalanceWeights(periodId){
+  const map={};
+  S.balance.filter(b=>b.periodId===periodId).forEach(b=>{ map[b.areaId]=b.weightPct||0; });
+  return map;
+}
+
+function computeDayScore(isoDate){
+  const acts=S.actions.filter(a=>a.date===isoDate);
+  if(acts.length===0) return {score:null,areaScores:{},totalMin:0};
+  const period=getPeriodForDate(isoDate);
+  const weights=getBalanceWeights(period.id);
+  const totalAvailMin=(period.availableHours||16)*60;
+  const areaMin={},areaPerf={},areaCount={};
+  S.areas.forEach(a=>{ areaMin[a.id]=0; areaPerf[a.id]=0; areaCount[a.id]=0; });
+  acts.forEach(act=>{
+    const areaId=resolveAreaFromAction(act); if(!areaId) return;
+    areaMin[areaId]=(areaMin[areaId]||0)+(act.durationMin||0);
+    areaPerf[areaId]=(areaPerf[areaId]||0)+(act.performance||5);
+    areaCount[areaId]=(areaCount[areaId]||0)+1;
+  });
+  const areaScores={};
+  let weightedTotal=0,weightSum=0;
+  S.areas.forEach(a=>{
+    const wPct=weights[a.id]||0;
+    if(wPct===0){ areaScores[a.id]={score:null,targetMin:0,actualMin:areaMin[a.id]||0}; return; }
+    const targetMin=(wPct/100)*totalAvailMin;
+    const actualMin=areaMin[a.id]||0;
+    const avgPerf=areaCount[a.id]>0?areaPerf[a.id]/areaCount[a.id]:5;
+    const combined=Math.min(1,actualMin/targetMin)*0.6+(avgPerf/10)*0.4;
+    areaScores[a.id]={score:Math.round(combined*100),targetMin,actualMin,avgPerf:Math.round(avgPerf*10)/10};
+    weightedTotal+=combined*wPct; weightSum+=wPct;
+  });
+  const overall=weightSum>0?Math.round(weightedTotal/weightSum):0;
+  const totalMin=acts.reduce((s,a)=>s+(a.durationMin||0),0);
+  return {score:overall,areaScores,totalMin,period};
+}
+
+function resolveAreaFromAction(act){
+  if(act.areaId) return act.areaId;
+  if(act.taskId){ const t=byId(S.tasks,act.taskId); if(t) return t.areaId; }
+  if(act.routineId){ const r=byId(S.routines,act.routineId); if(r){ const ac=byId(S.activities,r.activityId); if(ac) return ac.areaId; } }
+  if(act.eventId){ const e=byId(S.events,act.eventId); if(e) return e.areaId; }
+  return null;
+}
+
+function scoreColor(s){
+  if(s===null||s===undefined) return 'var(--ink3)';
+  if(s>=75) return 'var(--score-a)';
+  if(s>=45) return 'var(--score-b)';
+  return 'var(--score-c)';
+}
+function scoreLetter(s){
+  if(s===null||s===undefined) return '—';
+  if(s>=85) return 'A'; if(s>=70) return 'B'; if(s>=50) return 'C'; if(s>=30) return 'D';
+  return 'F';
+}
+
+// ════════════════════════════════════════════════════════
+//  AUTO-AGENDA SUGGESTIONS  (client-side)
+// ════════════════════════════════════════════════════════
+function generateAgendaSuggestions(){
+  const today=S.todayDate;
+  const dow=new Date(today+'T12:00:00').getDay();
+  const alreadyLogged=S.actions.filter(a=>a.date===today)
+    .map(a=>a.routineId||a.eventId||a.taskId).filter(Boolean);
+  const suggestions=[];
+  S.routines.forEach(r=>{
+    if(alreadyLogged.includes(r.id)) return;
+    let due=false;
+    if(r.frequency==='daily') due=true;
+    if(r.frequency==='3x-week'&&[1,3,5].includes(dow)) due=true;
+    if(r.frequency==='2x-week'&&[2,4].includes(dow)) due=true;
+    if(r.frequency==='weekly'&&dow===1) due=true;
+    if(due) suggestions.push({type:'routine',id:r.id,label:r.label,durationMin:r.durationMin,
+      areaId:activityOf(r.activityId)?.areaId,priority:2});
+  });
+  S.events.forEach(e=>{
+    if(alreadyLogged.includes(e.id)) return;
+    let due=false;
+    if(e.frequency==='weekly'&&typeof e.dayOfWeek==='number'&&e.dayOfWeek===dow) due=true;
+    if(e.frequency==='once'&&e.date===today) due=true;
+    if(e.frequency==='monthly'&&e.dayOfMonth===new Date(today+'T12:00:00').getDate()) due=true;
+    if(due) suggestions.push({type:'event',id:e.id,label:e.label,durationMin:e.durationMin||60,
+      areaId:e.areaId,priority:1});
+  });
+  S.tasks.filter(t=>t.status!=='done').forEach(t=>{
+    if(alreadyLogged.includes(t.id)) return;
+    const du=daysUntil(t.deadline);
+    if(du!==null&&du<=7) suggestions.push({type:'task',id:t.id,label:t.label,
+      durationMin:t.estimatedMin||60,areaId:t.areaId,
+      priority:t.priority==='p1'?0:t.priority==='p2'?1:2,daysLeft:du});
+  });
+  suggestions.sort((a,b)=>a.priority-b.priority);
+  return suggestions;
+}
+
+// ════════════════════════════════════════════════════════
+//  CLOCK
+// ════════════════════════════════════════════════════════
+function tickClock(){
+  const now=new Date();
+  document.getElementById('clock').textContent=
+    String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+}</script>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  PAGE NAVIGATION
+// ════════════════════════════════════════════════════════
+function gotoPage(name){
+  S.currentPage=name;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===name));
+  renderPage(name);
+}
+
+function renderPage(name){
+  if(name==='today')   renderToday();
+  if(name==='kanban')  renderKanban();
+  if(name==='score')   renderScore();
+  if(name==='history') renderHistory();
+  if(name==='config')  renderConfig();
+}
+
+// ════════════════════════════════════════════════════════
+//  TODAY PAGE
+// ════════════════════════════════════════════════════════
+function renderToday(){
+  const td = S.todayDate;
+  const dn = new Date(td+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('today-heading').textContent='Today';
+  document.getElementById('today-date-sub').textContent=dn;
+
+  renderAgendaList();
+  renderTodaySidebar();
+}
+
+function renderAgendaList(){
+  const td=S.todayDate;
+  const actions=S.actions.filter(a=>a.date===td).sort((a,b)=>a.createdAt-b.createdAt);
+  const suggestions=generateAgendaSuggestions();
+  const el=document.getElementById('agenda-list');
+
+  let html='';
+
+  // Logged actions
+  if(actions.length>0){
+    html+=`<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:8px;">Logged today</div>`;
+    actions.forEach(a=>{
+      const areaId=resolveAreaFromAction(a);
+      const color=areaColor(areaId);
+      const name=a.label||resolveActionLabel(a);
+      const perf=a.performance?`<span style="font-family:var(--font-display);font-style:italic;font-size:15px;color:${scoreColor(a.performance*10)}">${a.performance}</span>`:'';
+      const dur=a.durationMin?`<span class="badge">${fmtMin(a.durationMin)}</span>`:'';
+      const notes=a.notes?`<div style="font-size:10px;color:var(--ink3);margin-top:3px;">${esc(a.notes)}</div>`:'';
+      const type=a.routineId?'routine':a.taskId?'task':a.eventId?'event':'free';
+      html+=`<div class="agenda-item ${a.skipped?'skipped':''}">
+        <div class="ai-left-bar" style="background:${color}"></div>
+        <div class="ai-time">${a.loggedAt||''}<br><span class="badge">${type}</span></div>
+        <div class="ai-body">
+          <div class="ai-name">${esc(name)}</div>
+          ${notes}
+          <div class="ai-meta" style="margin-top:4px;">${dur}${perf}</div>
+        </div>
+        <div class="ai-actions">
+          <button class="btn sm ghost" onclick="openLogModal(${JSON.stringify(a).replace(/"/g,'&quot;')})">✎</button>
+          <button class="btn sm ghost" onclick="deleteAction('${a.id}')">✕</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  // Suggestions
+  if(suggestions.length>0){
+    html+=`<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:16px 0 8px;">Suggested for today</div>`;
+    suggestions.forEach(s=>{
+      const color=areaColor(s.areaId);
+      const badge=s.daysLeft<0?`<span class="tag tag-p1">overdue ${Math.abs(s.daysLeft)}d</span>`:
+                  s.daysLeft===0?`<span class="tag tag-p1">due today</span>`:
+                  s.daysLeft<=3?`<span class="tag tag-p2">in ${s.daysLeft}d</span>`:
+                  `<span class="badge">in ${s.daysLeft||''}d</span>`;
+      const typeLabel=s.type==='routine'?'routine':s.type==='event'?'event':'task';
+      html+=`<div class="agenda-item" style="opacity:.75;border-style:dashed">
+        <div class="ai-left-bar" style="background:${color}"></div>
+        <div class="ai-time"><span class="badge">${typeLabel}</span><br><span style="font-size:10px;color:var(--ink3)">${fmtMin(s.durationMin)}</span></div>
+        <div class="ai-body">
+          <div class="ai-name">${esc(s.label)}</div>
+          <div class="ai-meta" style="margin-top:4px;">${s.daysLeft!==undefined?badge:''}</div>
+        </div>
+        <div class="ai-actions">
+          <button class="btn sm primary" onclick="quickLog('${s.type}','${s.id}','${esc(s.label)}',${s.durationMin||0},'${s.areaId||''}')">log</button>
+          <button class="btn sm ghost" onclick="skipSuggestion('${s.type}','${s.id}')">skip</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  if(!html) html='<div class="empty">Nothing yet today. Click "auto-agenda" to generate suggestions, or "+ log action" to record something.</div>';
+  el.innerHTML=html;
+}
+
+function resolveActionLabel(a){
+  if(a.taskId)   { const t=byId(S.tasks,a.taskId);   return t?.label||'Task'; }
+  if(a.routineId){ const r=byId(S.routines,a.routineId); return r?.label||'Routine'; }
+  if(a.eventId)  { const e=byId(S.events,a.eventId); return e?.label||'Event'; }
+  return 'Action';
+}
+
+function renderTodaySidebar(){
+  const td=S.todayDate;
+  const result=computeDayScore(td);
+
+  // big score
+  const sv=result.score;
+  document.getElementById('score-big').textContent=sv!==null?sv+'':'—';
+  document.getElementById('score-big').style.color=scoreColor(sv);
+  document.getElementById('score-label').textContent=sv!==null?scoreLetter(sv)+' — '+totalMinLabel(result.totalMin):'no actions logged';
+  document.getElementById('day-score-badge').textContent=`day ${sv!==null?sv:'—'}`;
+  document.getElementById('day-score-badge').style.color=scoreColor(sv);
+
+  // cursor strip
+  const pct=sv!==null?sv:50;
+  document.getElementById('score-cursor').style.left=pct+'%';
+
+  // donut canvas
+  drawDonut('score-donut',sv);
+
+  // area bars
+  const barsEl=document.getElementById('area-balance-bars');
+  let barsHtml='';
+  S.areas.forEach(a=>{
+    const as=result.areaScores[a.id];
+    if(!as||as.targetMin===0) return;
+    const pct=as.score!==null?as.score:0;
+    barsHtml+=`<div class="area-bar-row">
+      <div class="area-bar-label" title="${esc(a.label)}">${esc(a.label.split(' ')[0])}</div>
+      <div class="area-bar-track"><div class="area-bar-fill" style="width:${pct}%;background:${scoreColor(pct)}"></div></div>
+      <div class="area-bar-val">${pct}%</div>
+    </div>`;
+  });
+  barsEl.innerHTML=barsHtml||'<div style="font-size:11px;color:var(--ink3)">Set up balance weights in Configure.</div>';
+
+  // time logged
+  const actions=S.actions.filter(a=>a.date===td);
+  const totalMin=actions.reduce((s,a)=>s+(a.durationMin||0),0);
+  document.getElementById('time-logged-summary').innerHTML=
+    `<span style="font-family:var(--font-display);font-style:italic;font-size:20px;">${fmtMin(totalMin)||'0m'}</span> logged<br>
+     ${actions.length} action${actions.length!==1?'s':''} recorded`;
+
+  // deadlines
+  const upcoming=S.tasks.filter(t=>t.status!=='done'&&t.deadline)
+    .map(t=>({...t,du:daysUntil(t.deadline)}))
+    .filter(t=>t.du!==null&&t.du<=7)
+    .sort((a,b)=>a.du-b.du).slice(0,5);
+  const dlEl=document.getElementById('deadlines-widget');
+  if(!upcoming.length){ dlEl.innerHTML='<span style="color:var(--ink3)">No urgent deadlines.</span>'; return; }
+  dlEl.innerHTML=upcoming.map(t=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:var(--ink2)">${esc(t.label)}</span>
+      <span class="tag ${t.du<0?'tag-p1':t.du<=2?'tag-p2':'tag-p3'}">${t.du<0?`${Math.abs(t.du)}d overdue`:t.du===0?'today':`${t.du}d`}</span>
+    </div>`).join('');
+}
+
+function totalMinLabel(m){ return m>0?`${fmtMin(m)} logged`:''; }
+
+function drawDonut(canvasId,val){
+  const c=document.getElementById(canvasId);
+  if(!c) return;
+  const ctx=c.getContext('2d');
+  const w=c.width,h=c.height,r=w/2-6,cx=w/2,cy=h/2;
+  ctx.clearRect(0,0,w,h);
+  const pct=(val||0)/100;
+  const color=scoreColor(val);
+  // track
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.strokeStyle='#d8d0c4'; ctx.lineWidth=7; ctx.stroke();
+  // fill
+  if(val!==null){
+    ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+Math.PI*2*pct);
+    ctx.strokeStyle=color; ctx.lineWidth=7; ctx.stroke();
+  }
+}
+
+async function generateAgenda(){
+  // just refresh the display with suggestions
+  renderAgendaList();
+  showToast('Agenda refreshed with today\'s suggestions');
+}
+
+async function quickLog(type,id,label,durationMin,areaId){
+  const action={
+    id:uid(), date:S.todayDate,
+    label,
+    [type+'Id']:id,
+    areaId:areaId||null,
+    durationMin:durationMin||0,
+    performance:null,
+    notes:'',
+    resources:[],
+    loggedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+    createdAt:Date.now(),
+  };
+  await API.saveAction(action);
+  S.actions.push(action);
+  if(type==='task'){ const t=byId(S.tasks,id); if(t){ t.status='done'; await API.saveTask(t); } }
+  renderToday();
+  showToast(`Logged: ${label}`);
+}
+
+async function deleteAction(id){
+  await API.deleteAction(id);
+  S.actions=S.actions.filter(a=>a.id!==id);
+  renderToday();
+}
+
+function skipSuggestion(type,id){
+  // Just remove from suggestions by adding a "skip" marker in actions for today
+  // lightweight: just re-render, suggestion won't matter
+  showToast('Skipped (not logged)');
+  renderAgendaList();
+}
+
+// ════════════════════════════════════════════════════════
+//  KANBAN PAGE
+// ════════════════════════════════════════════════════════
+function renderKanban(){
+  // Populate area filter
+  const sel=document.getElementById('kanban-area-filter');
+  const cur=sel.value||'all';
+  sel.innerHTML='<option value="all">All areas</option>'+
+    S.areas.map(a=>`<option value="${a.id}" ${cur===a.id?'selected':''}>${esc(a.label)}</option>`).join('');
+
+  const filterArea=sel.value;
+  const cols=['todo','doing','done'];
+  const colLabels={'todo':'To Do','doing':'In Progress','done':'Done'};
+
+  // Compute day score per col (just overall)
+  const dayResult=computeDayScore(S.todayDate);
+
+  let tasks=S.tasks;
+  if(filterArea!=='all') tasks=tasks.filter(t=>t.areaId===filterArea);
+
+  let html='';
+  cols.forEach(col=>{
+    const colTasks=tasks.filter(t=>(t.status||'todo')===col)
+      .sort((a,b)=>({p1:0,p2:1,p3:2,'':3}[a.priority]??3)-({p1:0,p2:1,p3:2,'':3}[b.priority]??3));
+    const scoreDisp=col==='done'?`<span class="k-score" style="color:${scoreColor(dayResult.score)}">${dayResult.score!==null?dayResult.score+'':'—'}</span>`:'';
+    const cards=colTasks.map(t=>{
+      const color=areaColor(t.areaId);
+      const du=daysUntil(t.deadline);
+      const dl=t.deadline?`<span class="tag ${du<0?'tag-p1':du<=2?'tag-p2':'tag-p3'}">${du<0?`⚠ ${Math.abs(du)}d`:du===0?'today':du+'d'}</span>`:'';
+      const pBadge=t.priority?`<span class="tag tag-${t.priority}">${{p1:'urgent',p2:'important',p3:'someday'}[t.priority]}</span>`:'';
+      const proj=t.projectId?`<span class="badge" style="font-size:9px">${esc(byId(S.projects,t.projectId)?.label||'')}</span>`:'';
+      return `<div class="k-card" id="kc-${t.id}" draggable="true"
+          ondragstart="kDragStart('${t.id}')" ondragend="kDragEnd()">
+        <div class="k-card-name" style="border-left:2px solid ${color};padding-left:7px">${esc(t.label)}</div>
+        <div class="k-card-meta">${pBadge}${dl}${proj}</div>
+        <div style="display:flex;gap:5px;margin-top:8px;">
+          <button class="btn sm ghost" onclick="openTaskModal('${t.id}')">✎</button>
+          <button class="btn sm primary" onclick="openLogModal(null,'task','${t.id}')">log</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    html+=`<div class="k-col">
+      <div class="k-col-head" style="${col==='todo'?'border-top:2px solid var(--p2)':col==='doing'?'border-top:2px solid var(--p1)':'border-top:2px solid var(--accent3)'}">
+        ${colLabels[col]} <span class="badge">${colTasks.length}</span>${col==='done'?scoreDisp:''}
+      </div>
+      <div class="k-cards k-drop-zone" id="kdrop-${col}"
+        ondragover="kDragOver(event,'${col}')" ondrop="kDrop(event,'${col}')"
+        ondragleave="kDragLeave(event)">
+        ${cards||'<div style="padding:12px;font-size:10px;color:var(--ink3);font-style:italic">drop here</div>'}
+      </div>
+      <button class="k-add-btn" onclick="openTaskModal(null,'${col}')">+ add task</button>
+    </div>`;
+  });
+  document.getElementById('kanban-wrap').innerHTML=html;
+}
+
+function kDragStart(id){ S.kanbanDragId=id; setTimeout(()=>document.getElementById('kc-'+id)?.classList.add('dragging'),0); }
+function kDragEnd(){ S.kanbanDragId=null; document.querySelectorAll('.k-card').forEach(c=>c.classList.remove('dragging')); document.querySelectorAll('.k-drop-zone').forEach(z=>z.classList.remove('drag-over')); }
+function kDragOver(e,col){ e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function kDragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
+async function kDrop(e,col){
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  const id=S.kanbanDragId; if(!id) return;
+  const t=byId(S.tasks,id); if(!t) return;
+  t.status=col; t.done=col==='done';
+  await API.saveTask(t);
+  renderKanban();
+}
+
+// ════════════════════════════════════════════════════════
+//  SCORE PAGE
+// ════════════════════════════════════════════════════════
+function setScoreView(v){
+  S.scoreView=v;
+  document.querySelectorAll('.score-nav-item').forEach(el=>el.classList.toggle('active',el.dataset.sv===v));
+  renderScore();
+}
+
+function renderScore(){
+  const el=document.getElementById('score-content');
+  const v=S.scoreView;
+  const period=S.scorePeriod||'day';
+
+  // gather date range
+  const dates=getDatesForPeriod(period);
+  const allActions=S.actions.filter(a=>dates.includes(a.date));
+
+  let html=`<div class="period-tabs">
+    ${['day','week','month','year'].map(p=>`<div class="period-tab ${period===p?'active':''}" onclick="setScorePeriod('${p}')">${p}</div>`).join('')}
+  </div>`;
+
+  if(v==='overview'){
+    // Daily scores chart
+    html+=`<div style="margin-bottom:24px;">
+      <div class="section-head"><h3>Daily scores — ${period}</h3></div>
+      <div class="bar-chart" id="score-bar-chart">`;
+    dates.slice(-14).forEach(d=>{
+      const r=computeDayScore(d);
+      const sv=r.score;
+      const h=sv!==null?sv:3;
+      const dn=new Date(d+'T12:00:00');
+      const dl=dn.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      html+=`<div class="bar-col">
+        <div class="bar-val">${sv!==null?sv:'·'}</div>
+        <div class="bar-fill" style="height:${h}%;background:${scoreColor(sv)};min-height:4px;width:100%;border-radius:2px 2px 0 0"></div>
+        <div class="bar-label">${dl.split(' ')[0]}</div>
+      </div>`;
+    });
+    html+=`</div></div>`;
+
+    // Period summary
+    const periodScores=dates.map(d=>computeDayScore(d)).filter(r=>r.score!==null);
+    const avg=periodScores.length?Math.round(periodScores.reduce((s,r)=>s+r.score,0)/periodScores.length):null;
+    const totalMin=allActions.reduce((s,a)=>s+(a.durationMin||0),0);
+    html+=`<div class="grid3" style="margin-bottom:24px;">
+      <div class="card" style="text-align:center">
+        <div style="font-family:var(--font-display);font-style:italic;font-size:36px;color:${scoreColor(avg)}">${avg!==null?avg:'—'}</div>
+        <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em">avg score</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-family:var(--font-display);font-style:italic;font-size:36px;">${fmtMin(totalMin)||'—'}</div>
+        <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em">total logged</div>
+      </div>
+      <div class="card" style="text-align:center">
+        <div style="font-family:var(--font-display);font-style:italic;font-size:36px;">${allActions.length}</div>
+        <div style="font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em">actions</div>
+      </div>
+    </div>`;
+  }
+
+  if(v==='areas'){
+    html+=`<div class="section-head"><h3>Area breakdown — ${period}</h3></div>`;
+    S.areas.forEach(area=>{
+      const aActs=allActions.filter(a=>resolveAreaFromAction(a)===area.id);
+      const totMin=aActs.reduce((s,a)=>s+(a.durationMin||0),0);
+      const avgPerf=aActs.filter(a=>a.performance).length?
+        Math.round(aActs.filter(a=>a.performance).reduce((s,a)=>s+a.performance,0)/aActs.filter(a=>a.performance).length*10)/10:null;
+      html+=`<div class="card" style="margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:${area.color};display:inline-block;flex-shrink:0"></span>
+          <span style="font-size:13px;">${esc(area.label)}</span>
+          <span class="badge" style="margin-left:auto">${fmtMin(totMin)||'0m'}</span>
+          ${avgPerf!==null?`<span style="font-family:var(--font-display);font-style:italic;font-size:16px;color:${scoreColor(avgPerf*10)}">${avgPerf}</span>`:''}
+        </div>
+        ${aActs.length?`<div class="area-bar-track" style="height:6px;margin-top:8px;"><div class="area-bar-fill" style="width:${Math.min(100,totMin/6)}%;background:${area.color}"></div></div>`:''}
+        <div style="font-size:10px;color:var(--ink3);margin-top:4px">${aActs.length} action${aActs.length!==1?'s':''}</div>
+      </div>`;
+    });
+  }
+
+  if(v==='activities'){
+    html+=`<div class="section-head"><h3>Activity breakdown — ${period}</h3></div>`;
+    S.activities.forEach(ac=>{
+      const area=byId(S.areas,ac.areaId);
+      // find related routine/task actions
+      const relRoutines=S.routines.filter(r=>r.activityId===ac.id).map(r=>r.id);
+      const acActs=allActions.filter(a=>a.activityId===ac.id||(a.routineId&&relRoutines.includes(a.routineId)));
+      const totMin=acActs.reduce((s,a)=>s+(a.durationMin||0),0);
+      html+=`<div class="card" style="margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${area?.color||'#888'};display:inline-block"></span>
+          <span>${esc(ac.label)}</span>
+          <span style="font-size:10px;color:var(--ink3)">${esc(area?.label||'')}</span>
+          <span class="badge" style="margin-left:auto">${fmtMin(totMin)||'0m'}</span>
+        </div>
+      </div>`;
+    });
+  }
+
+  if(v==='balance'){
+    html+=`<div class="section-head"><h3>Balance alignment — ${period}</h3></div>`;
+    const period2=getPeriodForDate(S.todayDate);
+    const weights=getBalanceWeights(period2.id);
+    areasToShow.forEach(a=>{
+      const wPct=weights[a.id]||0;
+      const aActs=allActions.filter(act=>resolveAreaFromAction(act)===a.id);
+      const actualMin=aActs.reduce((s,act)=>s+(act.durationMin||0),0);
+      const targetMin=(wPct/100)*(period2.availableHours||16)*60*dates.length;
+      const ratio=targetMin>0?Math.round(Math.min(200,(actualMin/targetMin)*100)):null;
+      if(wPct===0) return;
+      html+=`<div class="balance-area-row">
+        <div class="bal-area-head">
+          <span style="width:8px;height:8px;border-radius:50%;background:${a.color};display:inline-block"></span>
+          <span class="bal-area-name">${esc(a.label)}</span>
+          <span class="bal-pct">${ratio!==null?ratio+'%':'—'}</span>
+        </div>
+        <div style="display:flex;gap:8px;font-size:10px;color:var(--ink3)">
+          <span>target: ${fmtMin(targetMin)}</span>
+          <span>actual: ${fmtMin(actualMin)}</span>
+          <span>weight: ${wPct}%</span>
+        </div>
+        <div class="area-bar-track" style="height:6px;margin-top:6px;">
+          <div class="area-bar-fill" style="width:${Math.min(100,ratio||0)}%;background:${scoreColor(ratio||0)}"></div>
+        </div>
+      </div>`;
+    });
+  }
+
+  el.innerHTML=html;
+}
+
+function setScorePeriod(p){
+  S.scorePeriod=p;
+  renderScore();
+}
+
+function getDatesForPeriod(period){
+  const today=S.todayDate;
+  const d=new Date(today+'T12:00:00');
+  const dates=[];
+  if(period==='day') return [today];
+  if(period==='week'){ for(let i=6;i>=0;i--){ const dd=new Date(d); dd.setDate(d.getDate()-i); dates.push(dd.toISOString().slice(0,10)); } return dates; }
+  if(period==='month'){ for(let i=29;i>=0;i--){ const dd=new Date(d); dd.setDate(d.getDate()-i); dates.push(dd.toISOString().slice(0,10)); } return dates; }
+  if(period==='year'){ for(let i=364;i>=0;i--){ const dd=new Date(d); dd.setDate(d.getDate()-i); dates.push(dd.toISOString().slice(0,10)); } return dates; }
+  return [today];
+}
+
+// ════════════════════════════════════════════════════════
+//  HISTORY PAGE
+// ════════════════════════════════════════════════════════
+function renderHistory(){
+  const el=document.getElementById('history-list');
+  // collect all unique dates with actions
+  const datesWithActions=[...new Set(S.actions.map(a=>a.date))].sort().reverse();
+  if(!datesWithActions.length){ el.innerHTML='<div class="empty">No history yet.</div>'; return; }
+
+  let html='';
+  datesWithActions.forEach(d=>{
+    const acts=S.actions.filter(a=>a.date===d);
+    const result=computeDayScore(d);
+    const dn=new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+    const totalMin=acts.reduce((s,a)=>s+(a.durationMin||0),0);
+    const isToday=d===S.todayDate;
+    html+=`<div class="history-row" onclick="toggleHistoryDetail('${d}')">
+      <div class="hist-date">${dn}${isToday?'<br><span class="tag tag-p2">today</span>':''}</div>
+      <div class="hist-summary">${acts.length} action${acts.length!==1?'s':''} · ${fmtMin(totalMin)||'0m'}</div>
+      <div class="hist-score" style="color:${scoreColor(result.score)}">${result.score!==null?result.score:'—'}</div>
+    </div>
+    <div id="hist-detail-${d}" style="display:none;background:var(--bg3);border:1px solid var(--line);border-top:none;margin-bottom:5px;">
+      ${acts.map(a=>`<div class="log-entry">
+        <div class="log-time">${a.loggedAt||''}</div>
+        <div class="log-name">${esc(a.label||resolveActionLabel(a))}</div>
+        <div class="log-dur">${a.durationMin?fmtMin(a.durationMin):''}</div>
+        ${a.performance!==null&&a.performance!==undefined?`<div class="log-perf" style="color:${scoreColor(a.performance*10)}">${a.performance}</div>`:''}
+      </div>`).join('')}
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+function toggleHistoryDetail(d){
+  const el=document.getElementById('hist-detail-'+d);
+  if(el) el.style.display=el.style.display==='none'?'block':'none';
+}
+
+// ════════════════════════════════════════════════════════
+//  EXPORT MD
+// ════════════════════════════════════════════════════════
+function exportMD(){
+  let md=`# lifeOS export — ${S.todayDate}\n\n`;
+  const datesWithActions=[...new Set(S.actions.map(a=>a.date))].sort().reverse();
+  datesWithActions.forEach(d=>{
+    const acts=S.actions.filter(a=>a.date===d);
+    const result=computeDayScore(d);
+    md+=`## ${d}  (score: ${result.score!==null?result.score:'—'})\n\n`;
+    acts.forEach(a=>{
+      const name=a.label||resolveActionLabel(a);
+      const dur=a.durationMin?` · ${fmtMin(a.durationMin)}`:'';
+      const perf=a.performance?` · perf: ${a.performance}/10`:'';
+      const notes=a.notes?`\n  > ${a.notes}`:'';
+      md+=`- [${a.skipped?'skipped':'x'}] ${name}${dur}${perf}${notes}\n`;
+    });
+    md+='\n';
+  });
+  const blob=new Blob([md],{type:'text/markdown'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download=`lifeos-${S.todayDate}.md`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showToast('Exported history.md');
+}
+
+// ════════════════════════════════════════════════════════
+//  EXPORT XLSX  (SheetJS)
+// ════════════════════════════════════════════════════════
+function exportXLSX(){
+  if(typeof XLSX === 'undefined'){ showToast('SheetJS not loaded yet — try again in a moment'); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  // ── palette helpers ──────────────────────────────────
+  const DARK  = { fgColor:{ rgb:'0F0E0C' } };
+  const HDR_FILL = { fgColor:{ rgb:'1E1B17' } };
+  const ACC   = { fgColor:{ rgb:'C8873A' } };
+  const RED   = { fgColor:{ rgb:'C84B2F' } };
+  const AMB   = { fgColor:{ rgb:'D4872A' } };
+  const GRN   = { fgColor:{ rgb:'7A9E7E' } };
+
+  function hdrStyle(rgb){ return { font:{bold:true,color:{rgb:'E8E0D0'}}, fill:{patternType:'solid',fgColor:{rgb:rgb||'252118'}}, alignment:{horizontal:'center',vertical:'center'}, border:{bottom:{style:'thin',color:{rgb:'3A342A'}}} }; }
+  function cellStyle(bold){ return { font:{bold:!!bold,color:{rgb:'E8E0D0'}}, fill:{patternType:'solid',fgColor:{rgb:'1A1714'}}, border:{bottom:{style:'thin',color:{rgb:'2E2A22'}} } }; }
+  function scoreStyle(score){
+    const rgb = score>=75?'7A9E7E':score>=45?'C8963A':'C84B2F';
+    return { font:{bold:true,italic:true,color:{rgb}}, fill:{patternType:'solid',fgColor:{rgb:'1A1714'}} };
+  }
+  function setColWidths(ws, widths){ ws['!cols'] = widths.map(w=>({wch:w})); }
+
+  // ── Sheet 1: History Log ─────────────────────────────
+  {
+    const rows = [];
+    rows.push(['Date','Day Score','Action','Type','Area','Activity','Duration (min)','Performance','Notes','Resources']);
+
+    const dates = [...new Set(S.actions.map(a=>a.date))].sort().reverse();
+    dates.forEach(d => {
+      const acts = S.actions.filter(a=>a.date===d).sort((a,b)=>a.createdAt-b.createdAt);
+      const result = computeDayScore(d);
+      acts.forEach(a => {
+        const areaId  = resolveAreaFromAction(a);
+        const area    = areaOf(areaId);
+        const type    = a.routineId?'routine':a.taskId?'task':a.eventId?'event':'free';
+        const activityId = a.routineId ? byId(S.routines,a.routineId)?.activityId : a.activityId;
+        const activity = activityOf(activityId);
+        const resources = (a.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join(' | ');
+        rows.push([
+          d,
+          result.score!==null ? result.score : '',
+          a.label || resolveActionLabel(a),
+          type,
+          area?.label || '',
+          activity?.label || '',
+          a.durationMin || '',
+          a.performance || '',
+          a.notes || '',
+          resources
+        ]);
+      });
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    // style header row
+    const hdrCols = ['A','B','C','D','E','F','G','H','I','J'];
+    hdrCols.forEach(c => {
+      const cell = ws[c+'1'];
+      if(cell) cell.s = hdrStyle('252118');
+    });
+    // style score cells
+    for(let r=2; r<=rows.length; r++){
+      const cell = ws['B'+r];
+      if(cell && cell.v !== '') cell.s = scoreStyle(cell.v);
+    }
+    setColWidths(ws, [12,10,36,10,20,18,14,12,30,40]);
+    ws['!freeze'] = {xSplit:0, ySplit:1};
+    XLSX.utils.book_append_sheet(wb, ws, 'History Log');
+  }
+
+  // ── Sheet 2: Daily Scores Summary ───────────────────
+  {
+    const rows = [];
+    rows.push(['Date','Weekday','Period','Score','Grade','Total Min','Actions','Work %','Finance %','Home %','Health %','Growth %','Social %','Culture %','Leisure %']);
+
+    const dates = [...new Set(S.actions.map(a=>a.date))].sort().reverse();
+    dates.forEach(d => {
+      const result  = computeDayScore(d);
+      const period  = getPeriodForDate(d);
+      const dn      = new Date(d+'T12:00:00');
+      const weekday = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dn.getDay()];
+      const asPct   = a => result.areaScores[a]?.score ?? '';
+      rows.push([
+        d, weekday, period.label,
+        result.score!==null ? result.score : '',
+        result.score!==null ? scoreLetter(result.score) : '',
+        result.totalMin || 0,
+        S.actions.filter(a=>a.date===d).length,
+        asPct('work'), asPct('finance'), asPct('home'), asPct('health'),
+        asPct('growth'), asPct('social'), asPct('culture'), asPct('leisure')
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    setColWidths(ws, [12,11,14,8,7,10,9,8,9,8,9,8,8,9,8]);
+    ws['!freeze'] = {xSplit:0, ySplit:1};
+    XLSX.utils.book_append_sheet(wb, ws, 'Daily Scores');
+  }
+
+  // ── Sheet 3: Tasks ───────────────────────────────────
+  {
+    const rows = [];
+    rows.push(['ID','Label','Description','Area','Project','Priority','Status','Deadline','Est. Min','Resources']);
+    S.tasks.forEach(t => {
+      const area = areaOf(t.areaId);
+      const proj = byId(S.projects, t.projectId);
+      const resources = (t.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join(' | ');
+      rows.push([
+        t.id, t.label, t.description||'',
+        area?.label||'', proj?.label||'',
+        t.priority?{p1:'Urgent',p2:'Important',p3:'Someday'}[t.priority]:'',
+        t.status||'todo', t.deadline||'',
+        t.estimatedMin||'', resources
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    setColWidths(ws, [16,30,40,18,22,12,10,12,9,40]);
+    ws['!freeze'] = {xSplit:0, ySplit:1};
+    XLSX.utils.book_append_sheet(wb, ws, 'Tasks');
+  }
+
+  // ── Sheet 4: Projects ────────────────────────────────
+  {
+    const rows = [];
+    rows.push(['ID','Label','Area','Status','Deadline','Goals','Description']);
+    S.projects.forEach(p => {
+      const area = areaOf(p.areaId);
+      rows.push([p.id, p.label, area?.label||'', p.status||'', p.deadline||'', p.goals||'', p.description||'']);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    setColWidths(ws, [16,28,18,10,12,32,42]);
+    ws['!freeze'] = {xSplit:0, ySplit:1};
+    XLSX.utils.book_append_sheet(wb, ws, 'Projects');
+  }
+
+  // ── Sheet 5: Routines & Events ───────────────────────
+  {
+    const rows = [];
+    rows.push(['Type','ID','Label','Area','Activity','Frequency','Duration (min)','Description','Resources']);
+    S.routines.forEach(r => {
+      const ac   = activityOf(r.activityId);
+      const area = areaOf(ac?.areaId);
+      const res  = (r.resources||[]).map(rv=>rv.url+(rv.desc?' — '+rv.desc:'')).join(' | ');
+      rows.push(['routine', r.id, r.label, area?.label||'', ac?.label||'', r.frequency||'', r.durationMin||'', r.description||'', res]);
+    });
+    S.events.forEach(ev => {
+      const area = areaOf(ev.areaId);
+      const freq = ev.frequency==='weekly'?`weekly (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][ev.dayOfWeek]||'?'})`:ev.frequency==='once'?`once (${ev.date})`:ev.frequency||'';
+      const res  = (ev.resources||[]).map(rv=>rv.url+(rv.desc?' — '+rv.desc:'')).join(' | ');
+      rows.push(['event', ev.id, ev.label, area?.label||'', '', freq, ev.durationMin||'', ev.description||'', res]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    setColWidths(ws, [9,16,28,18,18,18,13,36,40]);
+    ws['!freeze'] = {xSplit:0, ySplit:1};
+    XLSX.utils.book_append_sheet(wb, ws, 'Routines & Events');
+  }
+
+  // ── Sheet 6: Balance Config ──────────────────────────
+  {
+    const rows = [];
+    rows.push(['Period','Available Hours/Day','Area','Weight %','Target Min/Day']);
+    S.periods.forEach(per => {
+      const weights = S.balance.filter(b=>b.periodId===per.id);
+      S.areas.forEach(a => {
+        const w = weights.find(b=>b.areaId===a.id);
+        const pct = w?.weightPct||0;
+        const targetMin = Math.round(pct/100*(per.availableHours||16)*60);
+        rows.push([per.label, per.availableHours, a.label, pct, targetMin]);
+      });
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    setColWidths(ws, [16,18,22,12,14]);
+    ws['!freeze'] = {xSplit:0, ySplit:1};
+    XLSX.utils.book_append_sheet(wb, ws, 'Balance Config');
+  }
+
+  // ── Write & download ─────────────────────────────────
+  XLSX.writeFile(wb, `lifeos-${S.todayDate}.xlsx`);
+  showToast('↓ Exported lifeos.xlsx — 6 sheets');
+}
+</script>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  CONFIG PAGE
+// ════════════════════════════════════════════════════════
+function setCfgPanel(name){
+  S.cfgPanel=name;
+  document.querySelectorAll('.cfg-nav-item').forEach(el=>el.classList.toggle('active',el.dataset.cp===name));
+  document.querySelectorAll('.cfg-panel').forEach(el=>el.classList.remove('active'));
+  document.getElementById('cfg-'+name).classList.add('active');
+  // keep mobile dropdown in sync
+  const mob=document.getElementById('cfg-mobile-nav');
+  if(mob) mob.value=name;
+  renderCfgPanel(name);
+}
+
+function setCfgAreaFilter(areaId){
+  S.cfgAreaFilter=areaId;
+  const sel=document.getElementById('cfg-area-filter');
+  if(sel) sel.value=areaId;
+  renderCfgPanel(S.cfgPanel);
+}
+
+function renderConfig(){
+  // Populate area filter dropdown
+  const sel=document.getElementById('cfg-area-filter');
+  if(sel){
+    sel.innerHTML='<option value="all">All areas</option>'+
+      S.areas.map(a=>`<option value="${a.id}" ${S.cfgAreaFilter===a.id?'selected':''}>`+
+        a.label.replace(/&/g,'&amp;')+'</option>').join('');
+  }
+  renderCfgPanel(S.cfgPanel);
+}
+
+function renderCfgPanel(name){
+  const fns={areas:renderCfgAreas,activities:renderCfgActivities,projects:renderCfgProjects,
+    tasks:renderCfgTasks,routines:renderCfgRoutines,events:renderCfgEvents,
+    balance:renderCfgBalance,periods:renderCfgPeriods};
+  fns[name]?.();
+}
+
+// ── AREAS ──
+function renderCfgAreas(){
+  const el=document.getElementById('cfg-areas');
+  el.innerHTML=`<div class="section-head"><h3>Areas</h3>
+    <button class="btn sm primary" onclick="openAreaModal(null)" style="margin-left:auto">+ area</button></div>
+  <div class="entity-list">
+    ${S.areas.map(a=>`<div class="entity-row">
+      <span style="width:10px;height:10px;border-radius:50%;background:${a.color};display:inline-block;flex-shrink:0"></span>
+      <div class="entity-row-main"><div class="entity-row-name">${esc(a.label)}</div></div>
+      <div class="entity-actions">
+        <button class="btn sm ghost" onclick="openAreaModal('${a.id}')">✎</button>
+        <button class="btn sm danger" onclick="deleteEntity('areas','${a.id}')">✕</button>
+      </div>
+    </div>`).join('')||'<div class="empty">No areas defined.</div>'}
+  </div>`;
+}
+
+// ── ACTIVITIES ──
+function renderCfgActivities(){
+  const el=document.getElementById('cfg-activities');
+  const af=S.cfgAreaFilter;
+  const filtered=S.activities.filter(a=>af==='all'||a.areaId===af);
+  el.innerHTML=`<div class="section-head"><h3>Activities</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
+    <button class="btn sm primary" onclick="openActivityModal(null)" style="margin-left:auto">+ activity</button></div>
+  <div class="entity-list">
+    ${filtered.map(a=>{
+      const area=byId(S.areas,a.areaId);
+      return `<div class="entity-row">
+        <div class="entity-row-main">
+          <div class="entity-row-name">${esc(a.label)}</div>
+          <div class="entity-row-meta">${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:'no area'} · ${esc(a.goals||'')}</div>
+        </div>
+        <div class="entity-actions">
+          <button class="btn sm ghost" onclick="openActivityModal('${a.id}')">✎</button>
+          <button class="btn sm danger" onclick="deleteEntity('activities','${a.id}')">✕</button>
+        </div>
+      </div>`;}).join('')||`<div class="empty">No activities${af!=='all'?' in this area':''}.</div>`}
+  </div>`;
+}
+
+// ── PROJECTS ──
+function renderCfgProjects(){
+  const el=document.getElementById('cfg-projects');
+  const af=S.cfgAreaFilter;
+  const filtered=S.projects.filter(p=>af==='all'||p.areaId===af);
+  el.innerHTML=`<div class="section-head"><h3>Projects</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
+    <button class="btn sm primary" onclick="openProjectModal(null)" style="margin-left:auto">+ project</button></div>
+  <div class="entity-list">
+    ${filtered.map(p=>{
+      const area=byId(S.areas,p.areaId);
+      const du=daysUntil(p.deadline);
+      return `<div class="entity-row">
+        <div class="entity-row-main">
+          <div class="entity-row-name">${esc(p.label)}</div>
+          <div class="entity-row-meta">
+            ${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:''}
+            ${p.deadline?` · <span class="${du<0?'tag tag-p1':''}">${fmtDate(p.deadline)}</span>`:''}
+            ${p.goals?` · ${esc(p.goals)}`:''}
+          </div>
+        </div>
+        <div class="entity-actions">
+          <span class="badge">${esc(p.status||'todo')}</span>
+          <button class="btn sm ghost" onclick="openProjectModal('${p.id}')">✎</button>
+          <button class="btn sm danger" onclick="deleteEntity('projects','${p.id}')">✕</button>
+        </div>
+      </div>`;}).join('')||`<div class="empty">No projects${af!=='all'?' in this area':''}.</div>`}
+  </div>`;
+}
+
+// ── TASKS ──
+function renderCfgTasks(){
+  const el=document.getElementById('cfg-tasks');
+  const af=S.cfgAreaFilter;
+  const filtered=S.tasks.filter(t=>af==='all'||t.areaId===af);
+  el.innerHTML=`<div class="section-head"><h3>Tasks</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
+    <button class="btn sm primary" onclick="openTaskModal(null)" style="margin-left:auto">+ task</button></div>
+  <div class="entity-list">
+    ${filtered.map(t=>{
+      const area=byId(S.areas,t.areaId);
+      const proj=byId(S.projects,t.projectId);
+      const du=daysUntil(t.deadline);
+      return `<div class="entity-row">
+        <div class="entity-row-main">
+          <div class="entity-row-name">${esc(t.label)}</div>
+          <div class="entity-row-meta">
+            ${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:''}
+            ${proj?` · ${esc(proj.label)}`:''}
+            ${t.deadline?` · ${du<0?`<span style="color:var(--danger)">overdue ${Math.abs(du)}d</span>`:fmtDate(t.deadline)}`:''}
+          </div>
+        </div>
+        <div class="entity-actions">
+          ${t.priority?`<span class="tag tag-${t.priority}">${{p1:'urgent',p2:'important',p3:'someday'}[t.priority]}</span>`:''}
+          <span class="badge">${t.status||'todo'}</span>
+          <button class="btn sm ghost" onclick="openTaskModal('${t.id}')">✎</button>
+          <button class="btn sm danger" onclick="deleteEntity('tasks','${t.id}')">✕</button>
+        </div>
+      </div>`;}).join('')||`<div class="empty">No tasks${af!=='all'?' in this area':''}.</div>`}
+  </div>`;
+}
+
+// ── ROUTINES ──
+function renderCfgRoutines(){
+  const el=document.getElementById('cfg-routines');
+  const af=S.cfgAreaFilter;
+  const filtered=S.routines.filter(r=>{
+    if(af==='all') return true;
+    const ac=byId(S.activities,r.activityId);
+    return ac?.areaId===af;
+  });
+  el.innerHTML=`<div class="section-head"><h3>Routines</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
+    <button class="btn sm primary" onclick="openRoutineModal(null)" style="margin-left:auto">+ routine</button></div>
+  <div class="entity-list">
+    ${filtered.map(r=>{
+      const ac=byId(S.activities,r.activityId);
+      const area=byId(S.areas,ac?.areaId);
+      return `<div class="entity-row">
+        <div class="entity-row-main">
+          <div class="entity-row-name">${esc(r.label)}</div>
+          <div class="entity-row-meta">
+            ${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:''}
+            ${ac?` · ${esc(ac.label)}`:''}
+            · ${esc(r.frequency||'')} · ${fmtMin(r.durationMin)}
+          </div>
+        </div>
+        <div class="entity-actions">
+          <button class="btn sm ghost" onclick="openRoutineModal('${r.id}')">✎</button>
+          <button class="btn sm danger" onclick="deleteEntity('routines','${r.id}')">✕</button>
+        </div>
+      </div>`;}).join('')||`<div class="empty">No routines${af!=='all'?' in this area':''}.</div>`}
+  </div>`;
+}
+
+// ── EVENTS ──
+function renderCfgEvents(){
+  const el=document.getElementById('cfg-events');
+  const af=S.cfgAreaFilter;
+  const filtered=S.events.filter(ev=>af==='all'||ev.areaId===af);
+  el.innerHTML=`<div class="section-head"><h3>Events</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
+    <button class="btn sm primary" onclick="openEventModal(null)" style="margin-left:auto">+ event</button></div>
+  <div class="entity-list">
+    ${filtered.map(ev=>{
+      const area=byId(S.areas,ev.areaId);
+      const freqLabel=ev.frequency==='weekly'?`weekly (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][ev.dayOfWeek]||'?'})`:ev.frequency==='once'?`once (${fmtDate(ev.date)})`:esc(ev.frequency||'');
+      return `<div class="entity-row">
+        <div class="entity-row-main">
+          <div class="entity-row-name">${esc(ev.label)}</div>
+          <div class="entity-row-meta">
+            ${area?`<span style="color:${area.color}">${esc(area.label)}</span>`:''}
+            · ${freqLabel} · ${fmtMin(ev.durationMin)}
+          </div>
+        </div>
+        <div class="entity-actions">
+          <button class="btn sm ghost" onclick="openEventModal('${ev.id}')">✎</button>
+          <button class="btn sm danger" onclick="deleteEntity('events','${ev.id}')">✕</button>
+        </div>
+      </div>`;}).join('')||`<div class="empty">No events${af!=='all'?' in this area':''}.</div>`}
+  </div>`;
+}
+
+// ── PERIODS ──
+function renderCfgPeriods(){
+  const el=document.getElementById('cfg-periods');
+  const daysAll=['mon','tue','wed','thu','fri','sat','sun'];
+  el.innerHTML=`<div class="section-head"><h3>Periods</h3>
+    <button class="btn sm primary" onclick="openPeriodModal(null)" style="margin-left:auto">+ period</button></div>
+  <div class="entity-list">
+    ${S.periods.map(p=>`<div class="entity-row">
+      <div class="entity-row-main">
+        <div class="entity-row-name">${esc(p.label)}</div>
+        <div class="entity-row-meta">${p.availableHours}h available · days: ${(p.dayTypes||[]).join(', ')||'(none)'}</div>
+      </div>
+      <div class="entity-actions">
+        <button class="btn sm ghost" onclick="openPeriodModal('${p.id}')">✎</button>
+        <button class="btn sm danger" onclick="deleteEntity('periods','${p.id}')">✕</button>
+      </div>
+    </div>`).join('')||'<div class="empty">No periods defined.</div>'}
+  </div>`;
+}
+
+// ── BALANCE ──
+function renderCfgBalance(){
+  const el=document.getElementById('cfg-balance');
+  let html=`<div class="section-head"><h3>Balance Weights</h3></div>
+  <div style="font-size:11px;color:var(--ink3);margin-bottom:16px;line-height:1.6">
+    Define what % of available daily hours should be devoted to each area, per period type.<br>
+    Total across areas should sum to 100%.
+  </div>`;
+
+  const af=S.cfgAreaFilter;
+  const areasToShow = af==='all' ? S.areas : S.areas.filter(a=>a.id===af);
+  S.periods.forEach(per=>{
+    const weights=S.balance.filter(b=>b.periodId===per.id);
+    const total=weights.reduce((s,b)=>s+(b.weightPct||0),0);
+    const totalClass=Math.abs(total-100)<=2?'weight-ok':Math.abs(total-100)<=10?'weight-warn':'weight-err';
+
+    html+=`<div style="margin-bottom:24px;">
+      <div style="font-family:var(--font-display);font-style:italic;font-size:16px;color:var(--ink2);margin-bottom:8px;">${esc(per.label)}</div>
+      <div class="weight-total"><span>Total: </span><span class="${totalClass}">${total}%</span><span style="color:var(--ink3)">${Math.abs(total-100)<=2?'✓ balanced':total>100?`(${total-100}% over)`:`(${100-total}% under)`}</span></div>`;
+
+    S.areas.forEach(a=>{
+      const row=weights.find(b=>b.areaId===a.id);
+      const val=row?.weightPct||0;
+      html+=`<div class="balance-area-row">
+        <div class="bal-area-head">
+          <span style="width:8px;height:8px;border-radius:50%;background:${a.color};display:inline-block"></span>
+          <span class="bal-area-name">${esc(a.label)}</span>
+          <span class="bal-pct" id="balpct-${per.id}-${a.id}">${val}%</span>
+        </div>
+        <input type="range" min="0" max="100" value="${val}"
+          oninput="updateBalanceWeight('${per.id}','${a.id}',this.value)"
+          style="margin-top:4px">
+        <div style="font-size:10px;color:var(--ink3);margin-top:2px">
+          = ${Math.round(val/100*(per.availableHours||16)*60)} min / day
+        </div>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  el.innerHTML=html;
+}
+
+async function updateBalanceWeight(periodId,areaId,val){
+  const pct=parseInt(val);
+  document.getElementById(`balpct-${periodId}-${areaId}`).textContent=pct+'%';
+  const id=`b-${periodId}-${areaId}`;
+  const existing=byId(S.balance,id);
+  if(existing){ existing.weightPct=pct; await API.saveBalance(existing); }
+  else{
+    const obj={id,periodId,areaId,weightPct:pct};
+    S.balance.push(obj); await API.saveBalance(obj);
+  }
+  // re-render total
+  renderCfgBalance();
+}
+
+// ════════════════════════════════════════════════════════
+//  MODAL SYSTEM
+// ════════════════════════════════════════════════════════
+function openModal(html){ document.getElementById('modal-box').innerHTML=html; document.getElementById('modal-overlay').classList.add('open'); }
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); }
+function closeModalOnOverlay(e){ if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+
+// area selects helper
+function areaOptions(selected){ return S.areas.map(a=>`<option value="${a.id}" ${selected===a.id?'selected':''}>${esc(a.label)}</option>`).join(''); }
+function activityOptions(selected){ return S.activities.map(a=>`<option value="${a.id}" ${selected===a.id?'selected':''}>${esc(a.label)}</option>`).join(''); }
+function projectOptions(selected){ return '<option value="">— none —</option>'+S.projects.map(p=>`<option value="${p.id}" ${selected===p.id?'selected':''}>${esc(p.label)}</option>`).join(''); }
+function taskOptions(selected){ return S.tasks.map(t=>`<option value="${t.id}" ${selected===t.id?'selected':''}>${esc(t.label)}</option>`).join(''); }
+function routineOptions(selected){ return S.routines.map(r=>`<option value="${r.id}" ${selected===r.id?'selected':''}>${esc(r.label)}</option>`).join(''); }
+function eventOptions(selected){ return S.events.map(e=>`<option value="${e.id}" ${selected===e.id?'selected':''}>${esc(e.label)}</option>`).join(''); }
+
+// ── LOG ACTION MODAL ──
+function openLogModal(existingAction, defaultType, defaultId){
+  const a=existingAction||{};
+  const isEdit=!!a.id;
+  openModal(`<div class="modal-title">
+    ${isEdit?'Edit action':'Log action'}
+    <button onclick="closeModal()">✕</button>
+  </div>
+  <div class="field"><label>Label / what did you do?</label>
+    <input type="text" id="m-label" value="${esc(a.label||'')}" placeholder="describe the action…"></div>
+  <div class="grid2">
+    <div class="field"><label>Type</label>
+      <select id="m-type" onchange="onLogTypeChange()">
+        <option value="free" ${(!a.routineId&&!a.taskId&&!a.eventId)?'selected':''}>Free / other</option>
+        <option value="routine" ${a.routineId?'selected':''}>Routine</option>
+        <option value="task"    ${a.taskId?'selected':''}>Task</option>
+        <option value="event"   ${a.eventId?'selected':''}>Event</option>
+      </select></div>
+    <div class="field" id="m-ref-field"><label>Reference</label>
+      <select id="m-ref"></select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Area (override)</label>
+      <select id="m-area"><option value="">auto</option>${areaOptions(a.areaId||'')}</select></div>
+    <div class="field"><label>Date</label>
+      <input type="date" id="m-date" value="${a.date||S.todayDate}"></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Duration (minutes)</label>
+      <input type="number" id="m-dur" min="0" value="${a.durationMin||''}" placeholder="0"></div>
+    <div class="field"><label>Performance (1–10)</label>
+      <input type="number" id="m-perf" min="1" max="10" value="${a.performance||''}" placeholder="—"></div>
+  </div>
+  <div class="field"><label>Notes / context</label>
+    <textarea id="m-notes" rows="3">${esc(a.notes||'')}</textarea></div>
+  <div class="field"><label>Resources (URL — description, one per line)</label>
+    <textarea id="m-resources" rows="2">${(a.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join('\n')}</textarea></div>
+  <div class="modal-actions">
+    ${isEdit?`<button class="btn danger" onclick="deleteAction('${a.id}')">delete</button>`:''}
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveLogAction('${a.id||''}')">save</button>
+  </div>`);
+  // pre-fill type/ref
+  const type=a.routineId?'routine':a.taskId?'task':a.eventId?'event':'free';
+  document.getElementById('m-type').value=defaultType||type;
+  if(defaultId&&defaultType) { setTimeout(()=>{ onLogTypeChange(); setTimeout(()=>{ const sel=document.getElementById('m-ref'); if(sel) sel.value=defaultId; },50); },50); }
+  else onLogTypeChange();
+}
+
+function onLogTypeChange(){
+  const t=document.getElementById('m-type').value;
+  const ref=document.getElementById('m-ref');
+  const field=document.getElementById('m-ref-field');
+  if(t==='routine') ref.innerHTML=routineOptions('');
+  else if(t==='task') ref.innerHTML=taskOptions('');
+  else if(t==='event') ref.innerHTML=eventOptions('');
+  else { field.style.display='none'; return; }
+  field.style.display='';
+}
+
+async function saveLogAction(existingId){
+  const type=document.getElementById('m-type').value;
+  const ref=document.getElementById('m-ref').value;
+  const label=document.getElementById('m-label').value.trim()||document.getElementById('m-ref')?.options?.[document.getElementById('m-ref').selectedIndex]?.text||'Action';
+  const dur=parseInt(document.getElementById('m-dur').value)||0;
+  const perf=parseFloat(document.getElementById('m-perf').value)||null;
+  const notes=document.getElementById('m-notes').value.trim();
+  const date=document.getElementById('m-date').value||S.todayDate;
+  const areaId=document.getElementById('m-area').value||null;
+  const resRaw=document.getElementById('m-resources').value.trim();
+  const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[]; 
+
+  const action={
+    id:existingId||uid(),
+    label, date,
+    routineId:type==='routine'?ref:null,
+    taskId:   type==='task'   ?ref:null,
+    eventId:  type==='event'  ?ref:null,
+    areaId, durationMin:dur, performance:perf, notes, resources,
+    loggedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
+    createdAt:existingId?S.actions.find(a=>a.id===existingId)?.createdAt||Date.now():Date.now(),
+  };
+
+  await API.saveAction(action);
+  if(existingId) S.actions=S.actions.filter(a=>a.id!==existingId);
+  S.actions.push(action);
+
+  // auto-complete task
+  if(type==='task'&&ref){ const t=byId(S.tasks,ref); if(t&&t.status!=='done'){ t.status='done'; await API.saveTask(t); } }
+
+  closeModal();
+  renderPage(S.currentPage);
+  showToast('Action saved');
+}
+
+// ── TASK MODAL ──
+function openTaskModal(id, defaultStatus){
+  const t=id?byId(S.tasks,id):null;
+  openModal(`<div class="modal-title">${t?'Edit task':'New task'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="mt-label" value="${esc(t?.label||'')}"></div>
+  <div class="field"><label>Description</label><textarea id="mt-desc">${esc(t?.description||'')}</textarea></div>
+  <div class="grid2">
+    <div class="field"><label>Area</label><select id="mt-area"><option value="">—</option>${areaOptions(t?.areaId||'')}</select></div>
+    <div class="field"><label>Project</label><select id="mt-project">${projectOptions(t?.projectId||'')}</select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Priority</label>
+      <select id="mt-pri">
+        <option value="">—</option>
+        <option value="p1" ${t?.priority==='p1'?'selected':''}>Urgent</option>
+        <option value="p2" ${t?.priority==='p2'?'selected':''}>Important</option>
+        <option value="p3" ${t?.priority==='p3'?'selected':''}>Someday</option>
+      </select></div>
+    <div class="field"><label>Status</label>
+      <select id="mt-status">
+        <option value="todo"  ${(t?.status||defaultStatus||'todo')==='todo' ?'selected':''}>To Do</option>
+        <option value="doing" ${(t?.status||defaultStatus||'')==='doing'?'selected':''}>In Progress</option>
+        <option value="done"  ${(t?.status||'')==='done' ?'selected':''}>Done</option>
+      </select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Deadline</label><input type="date" id="mt-deadline" value="${t?.deadline||''}"></div>
+    <div class="field"><label>Est. duration (min)</label><input type="number" id="mt-dur" value="${t?.estimatedMin||''}" placeholder="0"></div>
+  </div>
+  <div class="field"><label>Resources (URL — description, one per line)</label>
+    <textarea id="mt-res" rows="2">${(t?.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join('\n')}</textarea></div>
+  <div class="modal-actions">
+    ${t?`<button class="btn danger" onclick="deleteEntity('tasks','${t.id}')">delete</button>`:''}
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveTask('${id||''}')">save</button>
+  </div>`);
+}
+
+async function saveTask(existingId){
+  const resRaw=document.getElementById('mt-res').value.trim();
+  const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[];
+  const task={
+    id:existingId||uid(),
+    label:document.getElementById('mt-label').value.trim(),
+    description:document.getElementById('mt-desc').value.trim(),
+    areaId:document.getElementById('mt-area').value||null,
+    projectId:document.getElementById('mt-project').value||null,
+    priority:document.getElementById('mt-pri').value||null,
+    status:document.getElementById('mt-status').value||'todo',
+    deadline:document.getElementById('mt-deadline').value||'',
+    estimatedMin:parseInt(document.getElementById('mt-dur').value)||0,
+    resources, dependsOn:[],
+  };
+  await API.saveTask(task);
+  if(existingId) S.tasks=S.tasks.filter(t=>t.id!==existingId);
+  S.tasks.push(task);
+  closeModal();
+  renderPage(S.currentPage);
+  showToast('Task saved');
+}
+
+// ── AREA MODAL ──
+function openAreaModal(id){
+  const a=id?byId(S.areas,id):null;
+  openModal(`<div class="modal-title">${a?'Edit area':'New area'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="ma-label" value="${esc(a?.label||'')}"></div>
+  <div class="field"><label>Colour</label><input type="text" id="ma-color" value="${a?.color||'#888888'}" placeholder="#c84b2f"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveArea('${id||''}')">save</button>
+  </div>`);
+}
+async function saveArea(existingId){
+  const area={id:existingId||uid(),label:document.getElementById('ma-label').value.trim(),color:document.getElementById('ma-color').value.trim()||'#888',icon:'◈'};
+  await API.saveArea(area);
+  if(existingId) S.areas=S.areas.filter(a=>a.id!==existingId);
+  S.areas.push(area);
+  closeModal(); renderCfgPanel('areas'); showToast('Area saved');
+}
+
+// ── ACTIVITY MODAL ──
+function openActivityModal(id){
+  const a=id?byId(S.activities,id):null;
+  openModal(`<div class="modal-title">${a?'Edit activity':'New activity'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="mac-label" value="${esc(a?.label||'')}"></div>
+  <div class="field"><label>Area</label><select id="mac-area"><option value="">—</option>${areaOptions(a?.areaId||'')}</select></div>
+  <div class="field"><label>Description</label><textarea id="mac-desc">${esc(a?.description||'')}</textarea></div>
+  <div class="field"><label>Goals</label><input type="text" id="mac-goals" value="${esc(a?.goals||'')}"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveActivity('${id||''}')">save</button>
+  </div>`);
+}
+async function saveActivity(existingId){
+  const ac={id:existingId||uid(),label:document.getElementById('mac-label').value.trim(),areaId:document.getElementById('mac-area').value||null,description:document.getElementById('mac-desc').value.trim(),goals:document.getElementById('mac-goals').value.trim(),projectIds:[],routineIds:[],eventIds:[]};
+  await API.saveActivity(ac);
+  if(existingId) S.activities=S.activities.filter(a=>a.id!==existingId);
+  S.activities.push(ac);
+  closeModal(); renderCfgPanel('activities'); showToast('Activity saved');
+}
+
+// ── PROJECT MODAL ──
+function openProjectModal(id){
+  const p=id?byId(S.projects,id):null;
+  openModal(`<div class="modal-title">${p?'Edit project':'New project'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="mp-label" value="${esc(p?.label||'')}"></div>
+  <div class="field"><label>Description</label><textarea id="mp-desc">${esc(p?.description||'')}</textarea></div>
+  <div class="field"><label>Goals</label><input type="text" id="mp-goals" value="${esc(p?.goals||'')}"></div>
+  <div class="grid2">
+    <div class="field"><label>Area</label><select id="mp-area"><option value="">—</option>${areaOptions(p?.areaId||'')}</select></div>
+    <div class="field"><label>Status</label>
+      <select id="mp-status">
+        <option value="todo"  ${(p?.status||'todo')==='todo' ?'selected':''}>To Do</option>
+        <option value="doing" ${p?.status==='doing'?'selected':''}>In Progress</option>
+        <option value="done"  ${p?.status==='done' ?'selected':''}>Done</option>
+      </select></div>
+  </div>
+  <div class="field"><label>Deadline</label><input type="date" id="mp-deadline" value="${p?.deadline||''}"></div>
+  <div class="modal-actions">
+    ${p?`<button class="btn danger" onclick="deleteEntity('projects','${p.id}')">delete</button>`:''}
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveProject('${id||''}')">save</button>
+  </div>`);
+}
+async function saveProject(existingId){
+  const proj={id:existingId||uid(),label:document.getElementById('mp-label').value.trim(),description:document.getElementById('mp-desc').value.trim(),goals:document.getElementById('mp-goals').value.trim(),areaId:document.getElementById('mp-area').value||null,status:document.getElementById('mp-status').value||'todo',deadline:document.getElementById('mp-deadline').value||'',taskIds:[],resources:[]};
+  await API.saveProject(proj);
+  if(existingId) S.projects=S.projects.filter(p=>p.id!==existingId);
+  S.projects.push(proj);
+  closeModal(); renderCfgPanel('projects'); showToast('Project saved');
+}
+
+// ── ROUTINE MODAL ──
+function openRoutineModal(id){
+  const r=id?byId(S.routines,id):null;
+  openModal(`<div class="modal-title">${r?'Edit routine':'New routine'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="mr-label" value="${esc(r?.label||'')}"></div>
+  <div class="field"><label>Activity</label><select id="mr-activity"><option value="">—</option>${activityOptions(r?.activityId||'')}</select></div>
+  <div class="field"><label>Description</label><textarea id="mr-desc">${esc(r?.description||'')}</textarea></div>
+  <div class="grid2">
+    <div class="field"><label>Frequency</label>
+      <select id="mr-freq">
+        <option value="daily"    ${r?.frequency==='daily'   ?'selected':''}>Daily</option>
+        <option value="2x-week"  ${r?.frequency==='2x-week' ?'selected':''}>2× week</option>
+        <option value="3x-week"  ${r?.frequency==='3x-week' ?'selected':''}>3× week</option>
+        <option value="weekly"   ${r?.frequency==='weekly'  ?'selected':''}>Weekly</option>
+        <option value="monthly"  ${r?.frequency==='monthly' ?'selected':''}>Monthly</option>
+      </select></div>
+    <div class="field"><label>Duration (min)</label><input type="number" id="mr-dur" value="${r?.durationMin||''}" placeholder="30"></div>
+  </div>
+  <div class="field"><label>Resources (URL — description, one per line)</label><textarea id="mr-res" rows="2">${(r?.resources||[]).map(rv=>rv.url+(rv.desc?' — '+rv.desc:'')).join('\n')}</textarea></div>
+  <div class="modal-actions">
+    ${r?`<button class="btn danger" onclick="deleteEntity('routines','${r.id}')">delete</button>`:''}
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveRoutine('${id||''}')">save</button>
+  </div>`);
+}
+async function saveRoutine(existingId){
+  const resRaw=document.getElementById('mr-res').value.trim();
+  const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[];
+  const routine={id:existingId||uid(),label:document.getElementById('mr-label').value.trim(),activityId:document.getElementById('mr-activity').value||null,description:document.getElementById('mr-desc').value.trim(),frequency:document.getElementById('mr-freq').value,durationMin:parseInt(document.getElementById('mr-dur').value)||30,resources};
+  await API.saveRoutine(routine);
+  if(existingId) S.routines=S.routines.filter(r=>r.id!==existingId);
+  S.routines.push(routine);
+  closeModal(); renderCfgPanel('routines'); showToast('Routine saved');
+}
+
+// ── EVENT MODAL ──
+function openEventModal(id){
+  const ev=id?byId(S.events,id):null;
+  openModal(`<div class="modal-title">${ev?'Edit event':'New event'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="mev-label" value="${esc(ev?.label||'')}"></div>
+  <div class="field"><label>Area</label><select id="mev-area"><option value="">—</option>${areaOptions(ev?.areaId||'')}</select></div>
+  <div class="field"><label>Description</label><textarea id="mev-desc">${esc(ev?.description||'')}</textarea></div>
+  <div class="grid2">
+    <div class="field"><label>Frequency</label>
+      <select id="mev-freq" onchange="onEventFreqChange()">
+        <option value="once"    ${(ev?.frequency||'once')==='once'   ?'selected':''}>Once / planned</option>
+        <option value="weekly"  ${ev?.frequency==='weekly' ?'selected':''}>Weekly</option>
+        <option value="monthly" ${ev?.frequency==='monthly'?'selected':''}>Monthly</option>
+        <option value="yearly"  ${ev?.frequency==='yearly' ?'selected':''}>Yearly</option>
+      </select></div>
+    <div class="field"><label>Duration (min)</label><input type="number" id="mev-dur" value="${ev?.durationMin||60}"></div>
+  </div>
+  <div id="mev-day-field" class="field"><label>Day / Date</label>
+    <div class="grid2">
+      <input type="date" id="mev-date" value="${ev?.date||''}">
+      <select id="mev-dow">
+        ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((d,i)=>`<option value="${i}" ${ev?.dayOfWeek===i?'selected':''}>${d}</option>`).join('')}
+      </select>
+    </div></div>
+  <div class="field"><label>Resources (URL — description, one per line)</label><textarea id="mev-res" rows="2">${(ev?.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join('\n')}</textarea></div>
+  <div class="modal-actions">
+    ${ev?`<button class="btn danger" onclick="deleteEntity('events','${ev.id}')">delete</button>`:''}
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveEvent('${id||''}')">save</button>
+  </div>`);
+  onEventFreqChange();
+}
+function onEventFreqChange(){
+  const f=document.getElementById('mev-freq').value;
+  document.getElementById('mev-date').style.display=f==='once'?'':'none';
+  document.getElementById('mev-dow').style.display=f==='weekly'?'':'none';
+}
+async function saveEvent(existingId){
+  const freq=document.getElementById('mev-freq').value;
+  const resRaw=document.getElementById('mev-res').value.trim();
+  const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[];
+  const ev={id:existingId||uid(),label:document.getElementById('mev-label').value.trim(),areaId:document.getElementById('mev-area').value||null,description:document.getElementById('mev-desc').value.trim(),frequency:freq,durationMin:parseInt(document.getElementById('mev-dur').value)||60,date:document.getElementById('mev-date').value||'',dayOfWeek:parseInt(document.getElementById('mev-dow').value),resources};
+  await API.saveEvent(ev);
+  if(existingId) S.events=S.events.filter(e=>e.id!==existingId);
+  S.events.push(ev);
+  closeModal(); renderCfgPanel('events'); showToast('Event saved');
+}
+
+// ── PERIOD MODAL ──
+function openPeriodModal(id){
+  const p=id?byId(S.periods,id):null;
+  const days=['mon','tue','wed','thu','fri','sat','sun'];
+  const checkboxes=days.map(d=>`<label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;">
+    <input type="checkbox" id="mper-${d}" ${(p?.dayTypes||[]).includes(d)?'checked':''}> ${d.charAt(0).toUpperCase()+d.slice(1)}
+  </label>`).join('');
+  openModal(`<div class="modal-title">${p?'Edit period':'New period'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="mper-label" value="${esc(p?.label||'')}"></div>
+  <div class="field"><label>Description</label><textarea id="mper-desc" rows="2">${esc(p?.description||'')}</textarea></div>
+  <div class="field"><label>Available hours/day</label><input type="number" id="mper-hrs" value="${p?.availableHours||16}" min="1" max="24"></div>
+  <div class="field"><label>Day types</label><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px">${checkboxes}</div></div>
+  <div class="modal-actions">
+    ${p?`<button class="btn danger" onclick="deleteEntity('periods','${p.id}')">delete</button>`:''}
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="savePeriod('${id||''}')">save</button>
+  </div>`);
+}
+async function savePeriod(existingId){
+  const days=['mon','tue','wed','thu','fri','sat','sun'];
+  const dayTypes=days.filter(d=>document.getElementById('mper-'+d)?.checked);
+  const per={id:existingId||uid(),label:document.getElementById('mper-label').value.trim(),description:document.getElementById('mper-desc').value.trim(),availableHours:parseFloat(document.getElementById('mper-hrs').value)||16,dayTypes};
+  await API.savePeriod(per);
+  if(existingId) S.periods=S.periods.filter(p=>p.id!==existingId);
+  S.periods.push(per);
+  closeModal(); renderCfgPanel('periods'); showToast('Period saved');
+}
+
+// ── GENERIC DELETE ──
+async function deleteEntity(store,id){
+  if(!confirm('Delete this item?')) return;
+  // map store name to API method
+  const apiDel = {areas:'deleteArea',activities:'deleteActivity',projects:'deleteProject',
+    tasks:'deleteTask',routines:'deleteRoutine',events:'deleteEvent',
+    periods:'deletePeriod',balance:'deleteBalance',actions:'deleteAction'};
+  await API[apiDel[store]](id);
+  S[store]=S[store].filter(x=>x.id!==id);
+  closeModal();
+  renderPage(S.currentPage);
+  showToast('Deleted');
+}
+</script>
+
+</body>
+</html>
