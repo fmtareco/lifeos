@@ -56,10 +56,9 @@ public class SecurityConfig {
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID")
             )
-            // CSRF: keep enabled for form login, exempt /api/** for REST clients
-            .csrf(csrf -> csrf
-                .ignoringRequestMatchers("/api/**")
-            );
+            // CSRF: disabled — single-user personal app, all requests go through
+            // our own frontend served by the same origin
+            .csrf(csrf -> csrf.disable());
 
         return http.build();
     }
