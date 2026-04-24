@@ -50,11 +50,11 @@ spring:
       on-profile: prod
 
   datasource:
-    # Railway injects DATABASE_URL as postgresql://... but JDBC needs jdbc:postgresql://
-    url: jdbc:${DATABASE_URL}
+    # Use individual vars that Railway injects — avoids jdbc:// prefix mangling
+    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
     driver-class-name: org.postgresql.Driver
-    username: ${PGUSER:lifeos}
-    password: ${PGPASSWORD:changeme}
+    username: ${PGUSER}
+    password: ${PGPASSWORD}
 
   jpa:
     hibernate:
