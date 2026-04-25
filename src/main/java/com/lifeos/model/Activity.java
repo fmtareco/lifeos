@@ -23,4 +23,14 @@ public class Activity {
     private String description;
 
     private String goals;
+
+    /** Numeric goal target */
+    private Integer goalsNum;
+
+    /** Period for goal: day | week | month | quarter | year */
+    private String goalsPeriod;
+
+    /** Location IDs (comma-separated) */
+    @Column(columnDefinition = "TEXT")
+    private String locationIds;
 }

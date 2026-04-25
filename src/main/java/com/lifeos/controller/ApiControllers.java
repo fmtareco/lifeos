@@ -1,6 +1,7 @@
 package com.lifeos.controller;
 
 import com.lifeos.model.*;
+import com.lifeos.repository.LocationRepository;
 import com.lifeos.repository.*;
 import com.lifeos.service.AgendaService;
 import com.lifeos.service.ScoreEngine;
@@ -21,6 +22,18 @@ class AreaController {
     @GetMapping("/{id}") public ResponseEntity<Area>    getOne(@PathVariable String id) { return repo.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()); }
     @PutMapping("/{id}") public Area                    save  (@PathVariable String id, @RequestBody Area body) { body.setId(id); return repo.save(body); }
     @DeleteMapping("/{id}") public ResponseEntity<Void> delete(@PathVariable String id) { repo.deleteById(id); return ResponseEntity.noContent().build(); }
+}
+
+// ════════════════════════════════════════════════════════
+//  LOCATION
+// ════════════════════════════════════════════════════════
+@RestController @RequestMapping("/api/locations") @RequiredArgsConstructor
+class LocationController {
+    private final LocationRepository repo;
+    @GetMapping             public List<Location>              getAll()                            { return repo.findAll(); }
+    @GetMapping("/{id}")    public ResponseEntity<Location>    getOne(@PathVariable String id)     { return repo.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()); }
+    @PutMapping("/{id}")    public Location                    save  (@PathVariable String id, @RequestBody Location body) { body.setId(id); return repo.save(body); }
+    @DeleteMapping("/{id}") public ResponseEntity<Void>        delete(@PathVariable String id)     { repo.deleteById(id); return ResponseEntity.noContent().build(); }
 }
 
 // ════════════════════════════════════════════════════════

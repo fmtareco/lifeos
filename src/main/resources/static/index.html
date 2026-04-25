@@ -772,6 +772,10 @@ input[type=range]{width:100%;accent-color:var(--accent);}
           <option value="all">All areas</option>
         </select>
         <button class="btn sm ghost" onclick="setCfgAreaFilter('all')" title="clear filter" style="padding:5px 8px;">✕ clear</button>
+        <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-style:normal;margin-left:8px;">location</span>
+        <select id="cfg-location-filter" onchange="S.cfgLocationFilter=this.value;renderCfgPanel(S.cfgPanel)" style="width:140px;font-size:11px;padding:5px 8px;">
+          <option value="all">All locations</option>
+        </select>
       </div>
     </div>
     <!-- Mobile-only panel selector -->
@@ -783,6 +787,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
       <option value="tasks">□ Tasks</option>
       <option value="routines">↻ Routines</option>
       <option value="events">◎ Events</option>
+      <option value="locations">⌖ Locations</option>
       <option value="balance">⊡ Balance</option>
       <option value="periods">▦ Periods</option>
     </select>
@@ -794,6 +799,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         <div class="cfg-nav-item"        onclick="setCfgPanel('tasks')"      data-cp="tasks">      <span class="cfg-icon">□</span> Tasks</div>
         <div class="cfg-nav-item"        onclick="setCfgPanel('routines')"   data-cp="routines">   <span class="cfg-icon">↻</span> Routines</div>
         <div class="cfg-nav-item"        onclick="setCfgPanel('events')"     data-cp="events">     <span class="cfg-icon">◎</span> Events</div>
+        <div class="cfg-nav-item"        onclick="setCfgPanel('locations')"  data-cp="locations">  <span class="cfg-icon">⌖</span> Locations</div>
         <div class="cfg-nav-item"        onclick="setCfgPanel('balance')"    data-cp="balance">    <span class="cfg-icon">⊡</span> Balance</div>
         <div class="cfg-nav-item"        onclick="setCfgPanel('periods')"    data-cp="periods">    <span class="cfg-icon">▦</span> Periods</div>
       </div>
@@ -804,6 +810,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         <div class="cfg-panel" id="cfg-tasks"></div>
         <div class="cfg-panel" id="cfg-routines"></div>
         <div class="cfg-panel" id="cfg-events"></div>
+        <div class="cfg-panel" id="cfg-locations"></div>
         <div class="cfg-panel" id="cfg-balance"></div>
         <div class="cfg-panel" id="cfg-periods"></div>
       </div>
@@ -846,7 +853,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
 // ════════════════════════════════════════════════════════
 const S = {
   areas:[],activities:[],projects:[],tasks:[],
-  routines:[],events:[],periods:[],balance:[],actions:[],
+  routines:[],events:[],periods:[],balance:[],actions:[],locations:[],
   todayDate: todayISO(),
   currentPage:'today',
   cfgPanel:'areas',
@@ -855,6 +862,7 @@ const S = {
   cfgProjectFilter:'all',
   cfgRoutineActFilter:'all',
   cfgBalancePeriod:'all',
+  cfgLocationFilter:'all',
   scoreView:'overview',
   scorePeriod:'day',
   kanbanDragId:null,
@@ -866,14 +874,14 @@ function todayISO(){ return new Date().toISOString().slice(0,10); }
 //  LOAD ALL FROM API
 // ════════════════════════════════════════════════════════
 async function loadAll(){
-  const [areas,activities,projects,tasks,routines,events,periods,balance,actions] = await Promise.all([
+  const [areas,activities,projects,tasks,routines,events,periods,balance,actions,locations] = await Promise.all([
     API.getAreas(), API.getActivities(), API.getProjects(), API.getTasks(),
     API.getRoutines(), API.getEvents(), API.getPeriods(), API.getBalance(),
-    API.getActions(),
+    API.getActions(), API.getLocations(),
   ]);
   S.areas=areas; S.activities=activities; S.projects=projects; S.tasks=tasks;
   S.routines=routines; S.events=events; S.periods=periods; S.balance=balance;
-  S.actions=actions;
+  S.actions=actions; S.locations=locations;
 }
 
 // ════════════════════════════════════════════════════════
@@ -890,6 +898,7 @@ function byId(arr,id){ return arr.find(x=>x.id===id); }
 function areaOf(id){ return byId(S.areas,id); }
 function areaColor(id){ return areaOf(id)?.color||'#888'; }
 function activityOf(id){ return byId(S.activities,id); }
+function locationOf(id){ return byId(S.locations,id); }
 
 function showToast(msg,dur=2200){
   const t=document.getElementById('toast');
@@ -1723,12 +1732,17 @@ function setCfgAreaFilter(areaId){
 }
 
 function renderConfig(){
-  // Populate area filter dropdown
   const sel=document.getElementById('cfg-area-filter');
   if(sel){
     sel.innerHTML='<option value="all">All areas</option>'+
       S.areas.map(a=>`<option value="${a.id}" ${S.cfgAreaFilter===a.id?'selected':''}>`+
         a.label.replace(/&/g,'&amp;')+'</option>').join('');
+  }
+  const locSel=document.getElementById('cfg-location-filter');
+  if(locSel){
+    locSel.innerHTML='<option value="all">All locations</option>'+
+      S.locations.map(l=>`<option value="${l.id}" ${S.cfgLocationFilter===l.id?'selected':''}>`+
+        l.label.replace(/&/g,'&amp;')+'</option>').join('');
   }
   renderCfgPanel(S.cfgPanel);
 }
@@ -1736,7 +1750,7 @@ function renderConfig(){
 function renderCfgPanel(name){
   const fns={areas:renderCfgAreas,activities:renderCfgActivities,projects:renderCfgProjects,
     tasks:renderCfgTasks,routines:renderCfgRoutines,events:renderCfgEvents,
-    balance:renderCfgBalance,periods:renderCfgPeriods};
+    locations:renderCfgLocations,balance:renderCfgBalance,periods:renderCfgPeriods};
   fns[name]?.();
 }
 
@@ -1761,7 +1775,9 @@ function renderCfgAreas(){
 function renderCfgActivities(){
   const el=document.getElementById('cfg-activities');
   const af=S.cfgAreaFilter;
-  const filtered=S.activities.filter(a=>af==='all'||a.areaId===af);
+  const lf=S.cfgLocationFilter||'all';
+  let filtered=S.activities.filter(a=>af==='all'||a.areaId===af);
+  if(lf!=='all') filtered=filtered.filter(a=>a.locationIds&&a.locationIds.split(',').includes(lf));
   el.innerHTML=`<div class="section-head"><h3>Activities</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
     <button class="btn sm primary" onclick="openActivityModal(null)" style="margin-left:auto">+ activity</button></div>
   <div class="entity-list">
@@ -1785,9 +1801,11 @@ function renderCfgActivities(){
 function renderCfgProjects(){
   const el=document.getElementById('cfg-projects');
   const af=S.cfgAreaFilter;
+  const lf=S.cfgLocationFilter||'all';
   const acFilter=S.cfgActivityFilter||'all';
   let filtered=S.projects.filter(p=>af==='all'||p.areaId===af);
   if(acFilter!=='all') filtered=filtered.filter(p=>p.activityId===acFilter);
+  if(lf!=='all') filtered=filtered.filter(p=>p.locationIds&&p.locationIds.split(',').includes(lf));
   // activity filter dropdown (scoped to area filter)
   const actsForArea = af==='all'?S.activities:S.activities.filter(a=>a.areaId===af);
   const acFilterHtml=`<select onchange="S.cfgActivityFilter=this.value;renderCfgProjects()" style="font-size:11px;padding:4px 8px;margin-left:8px;">
@@ -1828,9 +1846,14 @@ function renderCfgTasks(){
   const el=document.getElementById('cfg-tasks');
   const af=S.cfgAreaFilter;
   const pjFilter=S.cfgProjectFilter||'all';
+  const lf=S.cfgLocationFilter||'all';
   let filtered=S.tasks.filter(t=>{
     if(af!=='all'&&t.areaId!==af) return false;
     if(pjFilter!=='all'&&t.projectId!==pjFilter) return false;
+    if(lf!=='all'){
+      const proj=byId(S.projects,t.projectId);
+      if(!proj||!proj.locationIds||!proj.locationIds.split(',').includes(lf)) return false;
+    }
     return true;
   });
   const projsForArea = af==='all'?S.projects:S.projects.filter(p=>p.areaId===af);
@@ -2020,26 +2043,39 @@ function renderCfgBalance(){
     const weights=S.balance.filter(b=>b.periodId===per.id);
     const total=weights.reduce((s,b)=>s+(b.weightPct||0),0);
     const totalClass=Math.abs(total-100)<=2?'weight-ok':Math.abs(total-100)<=10?'weight-warn':'weight-err';
-    html+=`<div style="margin-bottom:24px;">
-      <div style="font-family:var(--font-display);font-style:italic;font-size:16px;color:var(--ink2);margin-bottom:8px;">${esc(per.label)}</div>
-      <div class="weight-total" style="position:sticky;top:0;background:var(--bg3);z-index:10;"><span>Total: </span><span class="${totalClass}" id="baltotal-${per.id}-main">${total}%</span><span style="color:var(--ink3)">${Math.abs(total-100)<=2?' ✓ balanced':total>100?` (${total-100}% over)`:` (${100-total}% under)`}</span></div>`;
+    html+=`<div style="margin-bottom:24px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;">
+      <div style="padding:12px 14px;background:var(--bg3);border-bottom:1px solid var(--line);">
+        <div style="font-family:var(--font-display);font-style:italic;font-size:16px;color:var(--ink2);">${esc(per.label)}</div>
+        <div class="weight-total" style="margin-top:6px;margin-bottom:0;border:none;padding:0;background:none;">
+          <span>Total: </span><span class="${totalClass}" id="baltotal-${per.id}-main">${total}%</span>
+          <span style="color:var(--ink3)">${Math.abs(total-100)<=2?' ✓ balanced':total>100?' ('+( total-100)+'% over)':' ('+(100-total)+'% under)'}</span>
+        </div>
+      </div>
+      <div style="max-height:320px;overflow-y:auto;padding:8px 14px;">`;
     areasToShow.forEach(a=>{
       const row=weights.find(b=>b.areaId===a.id);
       const val=row?.weightPct||0;
+      const minsPerDay=Math.round(val/100*(per.availableHours||16)*60);
       html+=`<div class="balance-area-row">
         <div class="bal-area-head">
           <span style="width:8px;height:8px;border-radius:50%;background:${a.color};display:inline-block"></span>
           <span class="bal-area-name">${esc(a.label)}</span>
           <span class="bal-pct" id="balpct-${per.id}-${a.id}">${val}%</span>
         </div>
-        <input type="range" min="0" max="100" value="${val}"
-          oninput="updateBalanceWeight('${per.id}','${a.id}',this.value)" style="margin-top:4px">
-        <div style="font-size:10px;color:var(--ink3);margin-top:2px">
-          = ${Math.round(val/100*(per.availableHours||16)*60)} min / day
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+          <input type="range" min="0" max="100" value="${val}"
+            id="balrange-${per.id}-${a.id}"
+            oninput="updateBalanceWeight('${per.id}','${a.id}',this.value,${per.availableHours||16},'range')"
+            style="flex:1">
+          <input type="number" min="0" max="${Math.round((per.availableHours||16)*60)}" value="${minsPerDay}"
+            id="balmins-${per.id}-${a.id}"
+            oninput="updateBalanceWeight('${per.id}','${a.id}',this.value,${per.availableHours||16},'mins')"
+            style="width:60px;font-size:11px;padding:3px 6px;">
+          <span style="font-size:10px;color:var(--ink3);width:24px">min</span>
         </div>
       </div>`;
     });
-    html+='</div>';
+    html+='</div></div>';
   });
   el.innerHTML=html;
 }
@@ -2063,7 +2099,8 @@ async function updateBalanceWeight(periodId,areaId,rawVal,availHours,inputType){
   const rangeEl=document.getElementById('balrange-'+periodId+'-'+areaId);
   if(rangeEl) rangeEl.value=pct;
   const minsEl=document.getElementById('balmins-'+periodId+'-'+areaId);
-  if(minsEl) minsEl.value=Math.round(pct/100*availHours*60);
+  const newMins=Math.round(pct/100*availHours*60);
+  if(minsEl) minsEl.value=newMins;
   const id='b-'+periodId+'-'+areaId;
   const existing=byId(S.balance,id);
   if(existing){ existing.weightPct=pct; await API.saveBalance(existing); }
@@ -2087,6 +2124,13 @@ function closeModalOnOverlay(e){ if(e.target===document.getElementById('modal-ov
 
 // area selects helper
 function areaOptions(selected){ return S.areas.map(a=>`<option value="${a.id}" ${selected===a.id?'selected':''}>${esc(a.label)}</option>`).join(''); }
+function locationOptions(selected){
+  return '<option value="">— none —</option>'+S.locations.map(l=>`<option value="${l.id}" ${selected===l.id?'selected':''}>${esc(l.label)}</option>`).join('');
+}
+function locationChips(idsCsv){
+  if(!idsCsv) return '';
+  return idsCsv.split(',').map(id=>{ const l=locationOf(id); return l?`<span class="badge">${esc(l.label)}</span>`:'' }).join(' ');
+}
 function activityOptions(selected,areaId){ 
   const list = areaId ? S.activities.filter(a=>a.areaId===areaId) : S.activities;
   return list.map(a=>`<option value="${a.id}" ${selected===a.id?'selected':''}>${esc(a.label)}</option>`).join(''); 
@@ -2194,16 +2238,29 @@ async function saveLogAction(existingId){
 // ── TASK MODAL ──
 function openTaskModal(id, defaultStatus){
   const t=id?byId(S.tasks,id):null;
+  const preArea=t?.areaId||(S.cfgAreaFilter!=='all'?S.cfgAreaFilter:'');
+  const preAct=t?.activityId||(S.cfgActivityFilter&&S.cfgActivityFilter!=='all'?S.cfgActivityFilter:'');
   const preProj=t?.projectId||(S.cfgProjectFilter&&S.cfgProjectFilter!=='all'?S.cfgProjectFilter:'');
-  const preProj_obj=byId(S.projects,preProj);
-  const preArea=t?.areaId||preProj_obj?.areaId||(S.cfgAreaFilter!=='all'?S.cfgAreaFilter:'');
+  // activities for preArea, projects for preAct
+  const taskActOpts='<option value="">—</option>'+activityOptions(preAct,preArea||null);
+  const taskProjOpts='<option value="">—</option>'+S.projects.filter(p=>(!preArea||p.areaId===preArea)&&(!preAct||p.activityId===preAct)).map(p=>`<option value="${p.id}" ${preProj===p.id?'selected':''}>${esc(p.label)}</option>`).join('');
   const depTaskOpts='<option value="">— none —</option>'+S.tasks.filter(x=>x.id!==id).map(x=>`<option value="${x.id}" ${t?.dependsOnTaskId===x.id?'selected':''}>${esc(x.label)}</option>`).join('');
   openModal(`<div class="modal-title">${t?'Edit task':'New task'}<button onclick="closeModal()">✕</button></div>
   <div class="field"><label>Label</label><input type="text" id="mt-label" value="${esc(t?.label||'')}"></div>
   <div class="field"><label>Description</label><textarea id="mt-desc">${esc(t?.description||'')}</textarea></div>
+  <div class="field"><label>Area</label>
+    <select id="mt-area" onchange="onTaskAreaChange()">
+      <option value="">—</option>${areaOptions(preArea)}
+    </select></div>
   <div class="grid2">
-    <div class="field"><label>Project</label><select id="mt-project">${projectOptions(preProj)}</select></div>
-    <div class="field"><label>Area (override)</label><select id="mt-area"><option value="">from project</option>${areaOptions(preArea)}</select></div>
+    <div class="field"><label>Activity</label>
+      <select id="mt-activity" onchange="onTaskActivityChange()">
+        ${taskActOpts}
+      </select></div>
+    <div class="field"><label>Project</label>
+      <select id="mt-project" id="mt-project">
+        ${taskProjOpts}
+      </select></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Priority</label>
@@ -2237,6 +2294,19 @@ function openTaskModal(id, defaultStatus){
   </div>`);
 }
 
+function onTaskAreaChange(){
+  const areaId=document.getElementById('mt-area').value||null;
+  const actSel=document.getElementById('mt-activity');
+  actSel.innerHTML='<option value="">—</option>'+activityOptions('',areaId);
+  onTaskActivityChange();
+}
+function onTaskActivityChange(){
+  const areaId=document.getElementById('mt-area').value||null;
+  const actId=document.getElementById('mt-activity').value||null;
+  const projSel=document.getElementById('mt-project');
+  const projs=S.projects.filter(p=>(!areaId||p.areaId===areaId)&&(!actId||p.activityId===actId));
+  projSel.innerHTML='<option value="">—</option>'+projs.map(p=>`<option value="${p.id}">${esc(p.label)}</option>`).join('');
+}
 async function saveTask(existingId){
   try {
     const label=document.getElementById('mt-label').value.trim();
@@ -2244,11 +2314,13 @@ async function saveTask(existingId){
     const resRaw=document.getElementById('mt-res').value.trim();
     const resources=resRaw?resRaw.split('\n').map(l=>{ const parts=l.split(' — '); return {url:parts[0].trim(),desc:(parts[1]||'').trim()}; }).filter(r=>r.url):[];
     const projectId=document.getElementById('mt-project').value||null;
+    const activityId=document.getElementById('mt-activity').value||null;
     const proj=byId(S.projects,projectId);
     const task={
       id:existingId||uid(), label,
       description:document.getElementById('mt-desc').value.trim(),
       projectId,
+      activityId: activityId||proj?.activityId||null,
       areaId:document.getElementById('mt-area').value||proj?.areaId||null,
       priority:document.getElementById('mt-pri').value||null,
       status:document.getElementById('mt-status').value||'todo',
@@ -2306,6 +2378,13 @@ function openActivityModal(id){
       </select>
     </div>
   </div>
+  <div class="field"><label>Locations</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${S.locations.map(l=>`<label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;">
+        <input type="checkbox" class="mac-loc-cb" value="${l.id}" ${(a?.locationIds||'').split(',').includes(l.id)?'checked':''}> ${esc(l.label)}
+      </label>`).join('')}
+    </div>
+  </div>
   <div class="modal-actions">
     ${a?`<button class="btn danger" onclick="deleteEntity('activities','${a.id}')">delete</button>`:''}
     <button class="btn" onclick="closeModal()">cancel</button>
@@ -2321,9 +2400,11 @@ async function saveActivity(existingId){
   if(duplicate){ showToast('An activity with this name already exists in this area'); return; }
   const goalsNum=parseInt(document.getElementById('mac-goals-num').value)||null;
   const goalsPeriod=document.getElementById('mac-goals-period').value||null;
+  const locationIds=[...document.querySelectorAll('.mac-loc-cb:checked')].map(cb=>cb.value).join(',');
   const ac={id:existingId||uid(),label,areaId,
     description:document.getElementById('mac-desc').value.trim(),
-    goalsNum,goalsPeriod,goals:goalsNum&&goalsPeriod?`${goalsNum}x/${goalsPeriod}`:''};
+    goalsNum,goalsPeriod,goals:goalsNum&&goalsPeriod?goalsNum+'x/'+goalsPeriod:'',
+    locationIds};
   await API.saveActivity(ac);
   // reload from server to get persisted goalsNum/goalsPeriod
   S.activities = await API.getActivities();
@@ -2368,6 +2449,13 @@ function openProjectModal(id){
     <div class="field"><label>Deadline</label><input type="date" id="mp-deadline" value="${p?.deadline||''}"></div>
   </div>
   <div class="field"><label>Depends on project</label><select id="mp-depends">${depOpts}</select></div>
+  <div class="field"><label>Locations</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${S.locations.map(l=>`<label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;">
+        <input type="checkbox" class="mp-loc-cb" value="${l.id}" ${(p?.locationIds||'').split(',').includes(l.id)?'checked':''}> ${esc(l.label)}
+      </label>`).join('')}
+    </div>
+  </div>
   <div class="modal-actions">
     ${p?`<button class="btn danger" onclick="deleteEntity('projects','${p.id}')">delete</button>`:''}
     <button class="btn" onclick="closeModal()">cancel</button>
@@ -2383,10 +2471,10 @@ function onProjectAreaChange(){
 }
 function onProjectActivityChange(){
   const areaId=document.getElementById('mp-area').value||null;
-  const actId=document.getElementById('mp-activity').value||null;
   const depSel=document.getElementById('mp-depends');
   if(!depSel) return;
-  const deps=S.projects.filter(x=>(actId&&x.activityId===actId)||(areaId&&x.areaId===areaId&&!actId));
+  // depends on: same area (activity doesn't matter per spec)
+  const deps=S.projects.filter(x=>areaId?x.areaId===areaId:true);
   depSel.innerHTML='<option value="">— none —</option>'+deps.map(x=>`<option value="${x.id}">${esc(x.label)}</option>`).join('');
 }
 async function saveProject(existingId){
@@ -2399,7 +2487,7 @@ async function saveProject(existingId){
     status:document.getElementById('mp-status').value||'todo',
     deadline:document.getElementById('mp-deadline').value||'',
     dependsOnProjectId:document.getElementById('mp-depends').value||null,
-    taskIds:[],resources:[]};
+    locationIds:[...document.querySelectorAll('.mp-loc-cb:checked')].map(cb=>cb.value).join(',')};
   await API.saveProject(proj);
   if(existingId) S.projects=S.projects.filter(p=>p.id!==existingId);
   S.projects.push(proj);
@@ -2571,13 +2659,68 @@ async function savePeriod(existingId){
   } catch(e) { showToast('Error saving period: '+e.message); console.error(e); }
 }
 
+
+// ── LOCATIONS ──
+function renderCfgLocations(){
+  const el=document.getElementById('cfg-locations');
+  if(!el) return;
+  el.innerHTML=`<div class="section-head"><h3>Locations</h3>
+    <button class="btn sm primary" onclick="openLocationModal(null)" style="margin-left:auto">+ location</button></div>
+  <div class="entity-list">
+    ${S.locations.map(l=>`<div class="entity-row">
+      <div class="entity-row-main">
+        <div class="entity-row-name">${esc(l.label)}</div>
+        <div class="entity-row-meta">${esc(l.type||'')}${l.address?' · '+esc(l.address):''}</div>
+      </div>
+      <div class="entity-actions">
+        <button class="btn sm ghost" onclick="openLocationModal('${l.id}')">✎</button>
+        <button class="btn sm danger" onclick="deleteEntity('locations','${l.id}')">✕</button>
+      </div>
+    </div>`).join('')||'<div class="empty">No locations defined yet.</div>'}
+  </div>`;
+}
+
+function openLocationModal(id){
+  const l=id?byId(S.locations,id):null;
+  openModal(`<div class="modal-title">${l?'Edit location':'New location'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="ml-label" value="${esc(l?.label||'')}"></div>
+  <div class="grid2">
+    <div class="field"><label>Type</label>
+      <select id="ml-type">
+        <option value="">—</option>
+        ${['home','office','gym','outdoor','online','other'].map(t=>`<option value="${t}" ${l?.type===t?'selected':''}>${t}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Address / URL</label><input type="text" id="ml-address" value="${esc(l?.address||'')}"></div>
+  </div>
+  <div class="field"><label>Description</label><textarea id="ml-desc" rows="2">${esc(l?.description||'')}</textarea></div>
+  <div class="modal-actions">
+    ${l?`<button class="btn danger" onclick="deleteEntity('locations','${l.id}')">delete</button>`:''}
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveLocation('${id||''}')">save</button>
+  </div>`);
+}
+async function saveLocation(existingId){
+  try {
+    const label=document.getElementById('ml-label').value.trim();
+    if(!label){ showToast('Label is required'); return; }
+    const loc={id:existingId||uid(),label,
+      type:document.getElementById('ml-type').value||null,
+      address:document.getElementById('ml-address').value.trim(),
+      description:document.getElementById('ml-desc').value.trim()};
+    await API.saveLocation(loc);
+    if(existingId) S.locations=S.locations.filter(l=>l.id!==existingId);
+    S.locations.push(loc);
+    closeModal(); renderCfgPanel('locations'); showToast('Location saved');
+  } catch(e){ showToast('Error: '+e.message); console.error(e); }
+}
+
 // ── GENERIC DELETE ──
 async function deleteEntity(store,id){
   if(!confirm('Delete this item?')) return;
   // map store name to API method
   const apiDel = {areas:'deleteArea',activities:'deleteActivity',projects:'deleteProject',
     tasks:'deleteTask',routines:'deleteRoutine',events:'deleteEvent',
-    periods:'deletePeriod',balance:'deleteBalance',actions:'deleteAction'};
+    locations:'deleteLocation',periods:'deletePeriod',balance:'deleteBalance',actions:'deleteAction'};
   await API[apiDel[store]](id);
   S[store]=S[store].filter(x=>x.id!==id);
   closeModal();

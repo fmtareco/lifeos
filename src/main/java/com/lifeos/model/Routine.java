@@ -22,12 +22,29 @@ public class Routine {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    /** daily | 2x-week | 3x-week | weekly | monthly */
+    /** Legacy: e.g. "3x-week" */
     private String frequency;
+
+    /** Numeric frequency value */
+    private Integer freqNum;
+
+    /** Frequency period: day | week | month */
+    private String freqPeriod;
 
     private Integer durationMin;
 
-    /** JSON array: [{url, desc}] */
+    /** Optional: trigger on this event instead of fixed frequency */
+    @Column(length = 64)
+    private String eventId;
+
+    /** Comma-separated period IDs where this routine applies */
+    @Column(columnDefinition = "TEXT")
+    private String applicablePeriods;
+
+    /** Location IDs (comma-separated) */
+    @Column(columnDefinition = "TEXT")
+    private String locationIds;
+
     @Column(columnDefinition = "TEXT")
     private String resources;
 }

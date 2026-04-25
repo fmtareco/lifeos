@@ -23,27 +23,26 @@ public class Task {
     private String areaId;
 
     @Column(length = 64)
-    private String projectId;
-
-    @Column(length = 64)
     private String activityId;
 
-    /** p1 = urgent | p2 = important | p3 = someday */
+    @Column(length = 64)
+    private String projectId;
+
     private String priority;
 
-    /** todo | doing | done */
     @Builder.Default
     private String status = "todo";
 
     private String deadline;
 
+    private String activationDate;
+
     private Integer estimatedMin;
 
-    /** Comma-separated list of task IDs this task depends on */
-    @Column(columnDefinition = "TEXT")
-    private String dependsOn;
+    /** Task that must be completed before this one */
+    @Column(length = 64)
+    private String dependsOnTaskId;
 
-    /** JSON array: [{url, desc}] */
     @Column(columnDefinition = "TEXT")
     private String resources;
 }

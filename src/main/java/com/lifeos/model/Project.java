@@ -19,13 +19,24 @@ public class Project {
     @Column(length = 64)
     private String areaId;
 
+    @Column(length = 64)
+    private String activityId;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 
     private String goals;
 
-    private String deadline;   // ISO date string yyyy-MM-dd
+    private String deadline;
 
     @Builder.Default
-    private String status = "todo";  // todo | doing | done
+    private String status = "todo";
+
+    /** Project this one depends on (same area) */
+    @Column(length = 64)
+    private String dependsOnProjectId;
+
+    /** Location IDs (comma-separated) */
+    @Column(columnDefinition = "TEXT")
+    private String locationIds;
 }
