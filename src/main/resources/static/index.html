@@ -1950,16 +1950,18 @@ function renderCfgPeriods(){
   el.innerHTML=`<div class="section-head"><h3>Periods</h3>
     <button class="btn sm primary" onclick="openPeriodModal(null)" style="margin-left:auto">+ period</button></div>
   <div class="entity-list">
-    ${S.periods.map(p=>`<div class="entity-row">
-      <div class="entity-row-main">
-        <div class="entity-row-name">${esc(p.label)}</div>
-        <div class="entity-row-meta">${p.availableHours}h available · days: ${(p.dayTypes||[]).join(', ')||'(none)'}</div>
-      </div>
-      <div class="entity-actions">
-        <button class="btn sm ghost" onclick="openPeriodModal('${p.id}')">✎</button>
-        <button class="btn sm danger" onclick="deleteEntity('periods','${p.id}')">✕</button>
-      </div>
-    </div>`).join('')||'<div class="empty">No periods defined.</div>'}
+    ${S.periods.map(p=>{
+      const daysDisplay=Array.isArray(p.dayTypes)?p.dayTypes.join(', '):(p.dayTypes||'');
+      return `<div class="entity-row">
+        <div class="entity-row-main">
+          <div class="entity-row-name">${esc(p.label)}</div>
+          <div class="entity-row-meta">${p.availableHours}h available · days: ${daysDisplay||'(none/manual)'}</div>
+        </div>
+        <div class="entity-actions">
+          <button class="btn sm ghost" onclick="openPeriodModal('${p.id}')">✎</button>
+          <button class="btn sm danger" onclick="deleteEntity('periods','${p.id}')">✕</button>
+        </div>
+      </div>`;}).join('')||'<div class="empty">No periods defined.</div>'}
   </div>`;
 }
 
@@ -1991,16 +1993,23 @@ function renderCfgBalance(){
       const allWeights=S.balance.filter(b=>b.periodId===per.id);
       const total=allWeights.reduce((s,b)=>s+(b.weightPct||0),0);
       const totalClass=Math.abs(total-100)<=2?'weight-ok':Math.abs(total-100)<=10?'weight-warn':'weight-err';
+      const minsDay=Math.round(val/100*(per.availableHours||16)*60);
       html+=`<div class="balance-area-row">
         <div class="bal-area-head">
           <span class="bal-area-name">${esc(per.label)}</span>
           <span class="bal-pct" id="balpct-${per.id}-${af}">${val}%</span>
           <span class="${totalClass}" style="font-size:10px;margin-left:8px">total: ${total}%</span>
         </div>
-        <input type="range" min="0" max="100" value="${val}"
-          oninput="updateBalanceWeight('${per.id}','${af}',this.value)" style="margin-top:4px">
-        <div style="font-size:10px;color:var(--ink3);margin-top:2px">
-          = ${Math.round(val/100*(per.availableHours||16)*60)} min / day
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
+          <input type="range" min="0" max="100" value="${val}"
+            id="balrange-${per.id}-${af}"
+            oninput="updateBalanceWeight('${per.id}','${af}',this.value,${per.availableHours||16},'range')"
+            style="flex:1">
+          <input type="number" min="0" max="${Math.round((per.availableHours||16)*60)}" value="${minsDay}"
+            id="balmins-${per.id}-${af}"
+            oninput="updateBalanceWeight('${per.id}','${af}',this.value,${per.availableHours||16},'mins')"
+            style="width:60px;font-size:11px;padding:3px 6px;">
+          <span style="font-size:10px;color:var(--ink3);width:24px">min</span>
         </div>
       </div>`;
     });
@@ -2013,7 +2022,7 @@ function renderCfgBalance(){
     const totalClass=Math.abs(total-100)<=2?'weight-ok':Math.abs(total-100)<=10?'weight-warn':'weight-err';
     html+=`<div style="margin-bottom:24px;">
       <div style="font-family:var(--font-display);font-style:italic;font-size:16px;color:var(--ink2);margin-bottom:8px;">${esc(per.label)}</div>
-      <div class="weight-total"><span>Total: </span><span class="${totalClass}">${total}%</span><span style="color:var(--ink3)">${Math.abs(total-100)<=2?'✓ balanced':total>100?` (${total-100}% over)`:` (${100-total}% under)`}</span></div>`;
+      <div class="weight-total" style="position:sticky;top:0;background:var(--bg3);z-index:10;"><span>Total: </span><span class="${totalClass}" id="baltotal-${per.id}-main">${total}%</span><span style="color:var(--ink3)">${Math.abs(total-100)<=2?' ✓ balanced':total>100?` (${total-100}% over)`:` (${100-total}% under)`}</span></div>`;
     areasToShow.forEach(a=>{
       const row=weights.find(b=>b.areaId===a.id);
       const val=row?.weightPct||0;
@@ -2035,18 +2044,38 @@ function renderCfgBalance(){
   el.innerHTML=html;
 }
 
-async function updateBalanceWeight(periodId,areaId,val){
-  const pct=parseInt(val);
-  document.getElementById(`balpct-${periodId}-${areaId}`).textContent=pct+'%';
-  const id=`b-${periodId}-${areaId}`;
+async function updateBalanceWeight(periodId,areaId,rawVal,availHours,inputType){
+  availHours=availHours||16;
+  let pct;
+  if(inputType==='mins'){
+    const mins=parseInt(rawVal)||0;
+    pct=Math.round(mins/(availHours*60)*100);
+  } else {
+    pct=parseInt(rawVal)||0;
+  }
+  pct=Math.max(0,Math.min(100,pct));
+  // check total won't exceed 100 — cap this area at remainder
+  const others=S.balance.filter(b=>b.periodId===periodId&&b.areaId!==areaId).reduce((s,b)=>s+(b.weightPct||0),0);
+  if(pct+others>100) pct=Math.max(0,100-others);
+  // update display immediately
+  const pctEl=document.getElementById('balpct-'+periodId+'-'+areaId);
+  if(pctEl) pctEl.textContent=pct+'%';
+  const rangeEl=document.getElementById('balrange-'+periodId+'-'+areaId);
+  if(rangeEl) rangeEl.value=pct;
+  const minsEl=document.getElementById('balmins-'+periodId+'-'+areaId);
+  if(minsEl) minsEl.value=Math.round(pct/100*availHours*60);
+  const id='b-'+periodId+'-'+areaId;
   const existing=byId(S.balance,id);
   if(existing){ existing.weightPct=pct; await API.saveBalance(existing); }
-  else{
-    const obj={id,periodId,areaId,weightPct:pct};
-    S.balance.push(obj); await API.saveBalance(obj);
-  }
-  // re-render total
-  renderCfgBalance();
+  else{ const obj={id,periodId,areaId,weightPct:pct}; S.balance.push(obj); await API.saveBalance(obj); }
+  // re-render just the total indicator without full re-render (avoids slider focus loss)
+  const weights=S.balance.filter(b=>b.periodId===periodId);
+  const total=weights.reduce((s,b)=>s+(b.weightPct||0),0);
+  const tc=Math.abs(total-100)<=2?'weight-ok':Math.abs(total-100)<=10?'weight-warn':'weight-err';
+  // update any visible total indicators for this period
+  document.querySelectorAll('[id^="baltotal-'+periodId+'"]').forEach(el=>{
+    el.className=tc; el.textContent=total+'%';
+  });
 }
 
 // ════════════════════════════════════════════════════════
@@ -2058,7 +2087,10 @@ function closeModalOnOverlay(e){ if(e.target===document.getElementById('modal-ov
 
 // area selects helper
 function areaOptions(selected){ return S.areas.map(a=>`<option value="${a.id}" ${selected===a.id?'selected':''}>${esc(a.label)}</option>`).join(''); }
-function activityOptions(selected){ return S.activities.map(a=>`<option value="${a.id}" ${selected===a.id?'selected':''}>${esc(a.label)}</option>`).join(''); }
+function activityOptions(selected,areaId){ 
+  const list = areaId ? S.activities.filter(a=>a.areaId===areaId) : S.activities;
+  return list.map(a=>`<option value="${a.id}" ${selected===a.id?'selected':''}>${esc(a.label)}</option>`).join(''); 
+}
 function projectOptions(selected){ return '<option value="">— none —</option>'+S.projects.map(p=>`<option value="${p.id}" ${selected===p.id?'selected':''}>${esc(p.label)}</option>`).join(''); }
 function taskOptions(selected){ return S.tasks.map(t=>`<option value="${t.id}" ${selected===t.id?'selected':''}>${esc(t.label)}</option>`).join(''); }
 function routineOptions(selected){ return S.routines.map(r=>`<option value="${r.id}" ${selected===r.id?'selected':''}>${esc(r.label)}</option>`).join(''); }
@@ -2206,31 +2238,33 @@ function openTaskModal(id, defaultStatus){
 }
 
 async function saveTask(existingId){
-  const label=document.getElementById('mt-label').value.trim();
-  if(!label){ showToast('Label is required'); return; }
-  const resRaw=document.getElementById('mt-res').value.trim();
-  const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[];
-  const projectId=document.getElementById('mt-project').value||null;
-  const proj=byId(S.projects,projectId);
-  const task={
-    id:existingId||uid(), label,
-    description:document.getElementById('mt-desc').value.trim(),
-    projectId,
-    areaId:document.getElementById('mt-area').value||proj?.areaId||null,
-    priority:document.getElementById('mt-pri').value||null,
-    status:document.getElementById('mt-status').value||'todo',
-    deadline:document.getElementById('mt-deadline').value||'',
-    activationDate:document.getElementById('mt-activation').value||'',
-    estimatedMin:parseInt(document.getElementById('mt-dur').value)||0,
-    dependsOnTaskId:document.getElementById('mt-dep-task').value||null,
-    resources,
-  };
-  await API.saveTask(task);
-  if(existingId) S.tasks=S.tasks.filter(t=>t.id!==existingId);
-  S.tasks.push(task);
-  closeModal();
-  renderCfgPanel('tasks');
-  showToast('Task saved');
+  try {
+    const label=document.getElementById('mt-label').value.trim();
+    if(!label){ showToast('Label is required'); return; }
+    const resRaw=document.getElementById('mt-res').value.trim();
+    const resources=resRaw?resRaw.split('\n').map(l=>{ const parts=l.split(' — '); return {url:parts[0].trim(),desc:(parts[1]||'').trim()}; }).filter(r=>r.url):[];
+    const projectId=document.getElementById('mt-project').value||null;
+    const proj=byId(S.projects,projectId);
+    const task={
+      id:existingId||uid(), label,
+      description:document.getElementById('mt-desc').value.trim(),
+      projectId,
+      areaId:document.getElementById('mt-area').value||proj?.areaId||null,
+      priority:document.getElementById('mt-pri').value||null,
+      status:document.getElementById('mt-status').value||'todo',
+      deadline:document.getElementById('mt-deadline').value||'',
+      activationDate:document.getElementById('mt-activation').value||'',
+      estimatedMin:parseInt(document.getElementById('mt-dur').value)||0,
+      dependsOnTaskId:document.getElementById('mt-dep-task').value||null,
+      resources,
+    };
+    await API.saveTask(task);
+    if(existingId) S.tasks=S.tasks.filter(t=>t.id!==existingId);
+    S.tasks.push(task);
+    closeModal();
+    renderCfgPanel('tasks');
+    showToast('Task saved');
+  } catch(e) { showToast('Error saving task: '+e.message); console.error(e); }
 }
 
 // ── AREA MODAL ──
@@ -2291,8 +2325,8 @@ async function saveActivity(existingId){
     description:document.getElementById('mac-desc').value.trim(),
     goalsNum,goalsPeriod,goals:goalsNum&&goalsPeriod?`${goalsNum}x/${goalsPeriod}`:''};
   await API.saveActivity(ac);
-  if(existingId) S.activities=S.activities.filter(a=>a.id!==existingId);
-  S.activities.push(ac);
+  // reload from server to get persisted goalsNum/goalsPeriod
+  S.activities = await API.getActivities();
   closeModal(); renderCfgPanel('activities'); showToast('Activity saved');
 }
 
@@ -2301,14 +2335,26 @@ function openProjectModal(id){
   const p=id?byId(S.projects,id):null;
   const preArea=p?.areaId||(S.cfgAreaFilter!=='all'?S.cfgAreaFilter:'');
   const preAct=p?.activityId||(S.cfgActivityFilter&&S.cfgActivityFilter!=='all'?S.cfgActivityFilter:'');
-  const depOpts='<option value="">— none —</option>'+S.projects.filter(x=>x.id!==id).map(x=>`<option value="${x.id}" ${p?.dependsOnProjectId===x.id?'selected':''}>${esc(x.label)}</option>`).join('');
+  // activities filtered to selected area (dynamic on area change)
+  const actOpts='<option value="">—</option>'+activityOptions(preAct, preArea||null);
+  // dep projects: same activity, or same area if no activity
+  const depProjects=S.projects.filter(x=>x.id!==id&&(
+    (preAct&&x.activityId===preAct)||(preArea&&x.areaId===preArea)||(!preAct&&!preArea)
+  ));
+  const depOpts='<option value="">— none —</option>'+depProjects.map(x=>`<option value="${x.id}" ${p?.dependsOnProjectId===x.id?'selected':''}>${esc(x.label)}</option>`).join('');
   openModal(`<div class="modal-title">${p?'Edit project':'New project'}<button onclick="closeModal()">✕</button></div>
   <div class="field"><label>Label</label><input type="text" id="mp-label" value="${esc(p?.label||'')}"></div>
   <div class="field"><label>Description</label><textarea id="mp-desc">${esc(p?.description||'')}</textarea></div>
   <div class="field"><label>Goals</label><input type="text" id="mp-goals" value="${esc(p?.goals||'')}"></div>
   <div class="grid2">
-    <div class="field"><label>Area</label><select id="mp-area"><option value="">—</option>${areaOptions(preArea)}</select></div>
-    <div class="field"><label>Activity</label><select id="mp-activity"><option value="">—</option>${activityOptions(preAct)}</select></div>
+    <div class="field"><label>Area</label>
+      <select id="mp-area" onchange="onProjectAreaChange()" >
+        <option value="">—</option>${areaOptions(preArea)}
+      </select></div>
+    <div class="field"><label>Activity</label>
+      <select id="mp-activity" onchange="onProjectActivityChange()">
+        ${actOpts}
+      </select></div>
   </div>
   <div class="grid2">
     <div class="field"><label>Status</label>
@@ -2327,6 +2373,21 @@ function openProjectModal(id){
     <button class="btn" onclick="closeModal()">cancel</button>
     <button class="btn primary" onclick="saveProject('${id||''}')">save</button>
   </div>`);
+}
+function onProjectAreaChange(){
+  const areaId=document.getElementById('mp-area').value||null;
+  const actSel=document.getElementById('mp-activity');
+  const cur=actSel.value;
+  actSel.innerHTML='<option value="">—</option>'+activityOptions(cur,areaId);
+  onProjectActivityChange();
+}
+function onProjectActivityChange(){
+  const areaId=document.getElementById('mp-area').value||null;
+  const actId=document.getElementById('mp-activity').value||null;
+  const depSel=document.getElementById('mp-depends');
+  if(!depSel) return;
+  const deps=S.projects.filter(x=>(actId&&x.activityId===actId)||(areaId&&x.areaId===areaId&&!actId));
+  depSel.innerHTML='<option value="">— none —</option>'+deps.map(x=>`<option value="${x.id}">${esc(x.label)}</option>`).join('');
 }
 async function saveProject(existingId){
   const proj={id:existingId||uid(),
@@ -2383,36 +2444,39 @@ function openRoutineModal(id){
   </div>`);
 }
 async function saveRoutine(existingId){
-  const label=document.getElementById('mr-label').value.trim();
-  if(!label){ showToast('Label is required'); return; }
-  const resRaw=document.getElementById('mr-res').value.trim();
-  const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[];
-  const freqNum=parseInt(document.getElementById('mr-freq-num').value)||1;
-  const freqPeriod=document.getElementById('mr-freq-period').value||'day';
-  const applicablePeriods=[...document.querySelectorAll('.mr-period-cb:checked')].map(cb=>cb.value);
-  const routine={
-    id:existingId||uid(), label,
-    activityId:document.getElementById('mr-activity').value||null,
-    description:document.getElementById('mr-desc').value.trim(),
-    freqNum, freqPeriod,
-    frequency:`${freqNum}x-${freqPeriod}`,  // keep legacy field populated
-    durationMin:parseInt(document.getElementById('mr-dur').value)||30,
-    eventId:document.getElementById('mr-event').value||null,
-    applicablePeriods,
-    resources
-  };
-  await API.saveRoutine(routine);
-  if(existingId) S.routines=S.routines.filter(r=>r.id!==existingId);
-  S.routines.push(routine);
-  closeModal(); renderCfgPanel('routines'); showToast('Routine saved');
+  try {
+    const label=document.getElementById('mr-label').value.trim();
+    if(!label){ showToast('Label is required'); return; }
+    const resRaw=document.getElementById('mr-res').value.trim();
+    const resources=resRaw?resRaw.split('\n').map(l=>{ const parts=l.split(' — '); return {url:parts[0].trim(),desc:(parts[1]||'').trim()}; }).filter(r=>r.url):[];
+    const freqNum=parseInt(document.getElementById('mr-freq-num').value)||1;
+    const freqPeriod=document.getElementById('mr-freq-period').value||'day';
+    const applicablePeriods=[...document.querySelectorAll('.mr-period-cb:checked')].map(cb=>cb.value);
+    const routine={
+      id:existingId||uid(), label,
+      activityId:document.getElementById('mr-activity').value||null,
+      description:document.getElementById('mr-desc').value.trim(),
+      freqNum, freqPeriod,
+      frequency:freqNum+'x-'+freqPeriod,
+      durationMin:parseInt(document.getElementById('mr-dur').value)||30,
+      eventId:document.getElementById('mr-event').value||null,
+      applicablePeriods,
+      resources
+    };
+    await API.saveRoutine(routine);
+    if(existingId) S.routines=S.routines.filter(r=>r.id!==existingId);
+    S.routines.push(routine);
+    closeModal(); renderCfgPanel('routines'); showToast('Routine saved');
+  } catch(e) { showToast('Error saving routine: '+e.message); console.error(e); }
 }
 
 // ── EVENT MODAL ──
 function openEventModal(id){
   const ev=id?byId(S.events,id):null;
+  const preArea=ev?.areaId||(S.cfgAreaFilter!=='all'?S.cfgAreaFilter:'');
   openModal(`<div class="modal-title">${ev?'Edit event':'New event'}<button onclick="closeModal()">✕</button></div>
   <div class="field"><label>Label</label><input type="text" id="mev-label" value="${esc(ev?.label||'')}"></div>
-  <div class="field"><label>Area</label><select id="mev-area"><option value="">—</option>${areaOptions(ev?.areaId||'')}</select></div>
+  <div class="field"><label>Area</label><select id="mev-area"><option value="">—</option>${areaOptions(preArea)}</select></div>
   <div class="field"><label>Description</label><textarea id="mev-desc">${esc(ev?.description||'')}</textarea></div>
   <div class="grid2">
     <div class="field"><label>Frequency</label>
@@ -2424,14 +2488,16 @@ function openEventModal(id){
       </select></div>
     <div class="field"><label>Duration (min)</label><input type="number" id="mev-dur" value="${ev?.durationMin||60}"></div>
   </div>
-  <div id="mev-day-field" class="field"><label>Day / Date</label>
-    <div class="grid2">
-      <input type="date" id="mev-date" value="${ev?.date||''}">
-      <select id="mev-dow">
-        ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((d,i)=>`<option value="${i}" ${ev?.dayOfWeek===i?'selected':''}>${d}</option>`).join('')}
-      </select>
-    </div></div>
-  <div class="field"><label>Resources (URL — description, one per line)</label><textarea id="mev-res" rows="2">${(ev?.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join('\n')}</textarea></div>
+  <div id="mev-date-wrap" class="field"><label>Date</label>
+    <input type="date" id="mev-date" value="${ev?.date||''}"></div>
+  <div id="mev-dow-wrap" class="field"><label>Day of week</label>
+    <select id="mev-dow">
+      ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((d,i)=>`<option value="${i}" ${ev?.dayOfWeek===i?'selected':''}>${d}</option>`).join('')}
+    </select></div>
+  <div id="mev-dom-wrap" class="field"><label>Day of month</label>
+    <input type="number" id="mev-dom" min="1" max="31" value="${ev?.dayOfMonth||1}"></div>
+  <div class="field"><label>Resources (URL — description, one per line)</label>
+    <textarea id="mev-res" rows="2">${(ev?.resources||[]).map(r=>r.url+(r.desc?' \u2014 '+r.desc:'')).join('\n')}</textarea></div>
   <div class="modal-actions">
     ${ev?`<button class="btn danger" onclick="deleteEntity('events','${ev.id}')">delete</button>`:''}
     <button class="btn" onclick="closeModal()">cancel</button>
@@ -2441,18 +2507,33 @@ function openEventModal(id){
 }
 function onEventFreqChange(){
   const f=document.getElementById('mev-freq').value;
-  document.getElementById('mev-date').style.display=f==='once'?'':'none';
-  document.getElementById('mev-dow').style.display=f==='weekly'?'':'none';
+  document.getElementById('mev-date-wrap').style.display = f==='once'||f==='yearly'?'':'none';
+  document.getElementById('mev-dow-wrap').style.display  = f==='weekly'?'':'none';
+  document.getElementById('mev-dom-wrap').style.display  = f==='monthly'?'':'none';
 }
 async function saveEvent(existingId){
-  const freq=document.getElementById('mev-freq').value;
-  const resRaw=document.getElementById('mev-res').value.trim();
-  const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[];
-  const ev={id:existingId||uid(),label:document.getElementById('mev-label').value.trim(),areaId:document.getElementById('mev-area').value||null,description:document.getElementById('mev-desc').value.trim(),frequency:freq,durationMin:parseInt(document.getElementById('mev-dur').value)||60,date:document.getElementById('mev-date').value||'',dayOfWeek:parseInt(document.getElementById('mev-dow').value),resources};
-  await API.saveEvent(ev);
-  if(existingId) S.events=S.events.filter(e=>e.id!==existingId);
-  S.events.push(ev);
-  closeModal(); renderCfgPanel('events'); showToast('Event saved');
+  try {
+    const label=document.getElementById('mev-label').value.trim();
+    if(!label){ showToast('Label is required'); return; }
+    const freq=document.getElementById('mev-freq').value;
+    const resRaw=document.getElementById('mev-res').value.trim();
+    const resources=resRaw?resRaw.split('\n').map(l=>{ const parts=l.split(' — '); return {url:parts[0].trim(),desc:(parts[1]||'').trim()}; }).filter(r=>r.url):[];
+    const ev={
+      id:existingId||uid(), label,
+      areaId:document.getElementById('mev-area').value||null,
+      description:document.getElementById('mev-desc').value.trim(),
+      frequency:freq,
+      durationMin:parseInt(document.getElementById('mev-dur').value)||60,
+      date:freq==='once'?(document.getElementById('mev-date').value||''):'',
+      dayOfWeek:freq==='weekly'?parseInt(document.getElementById('mev-dow').value):null,
+      dayOfMonth:freq==='monthly'?parseInt(document.getElementById('mev-dom').value||'1'):null,
+      resources
+    };
+    await API.saveEvent(ev);
+    if(existingId) S.events=S.events.filter(e=>e.id!==existingId);
+    S.events.push(ev);
+    closeModal(); renderCfgPanel('events'); showToast('Event saved');
+  } catch(e) { showToast('Error saving event: '+e.message); console.error(e); }
 }
 
 // ── PERIOD MODAL ──
@@ -2460,7 +2541,7 @@ function openPeriodModal(id){
   const p=id?byId(S.periods,id):null;
   const days=['mon','tue','wed','thu','fri','sat','sun'];
   const checkboxes=days.map(d=>`<label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;">
-    <input type="checkbox" id="mper-${d}" ${(p?.dayTypes||[]).includes(d)?'checked':''}> ${d.charAt(0).toUpperCase()+d.slice(1)}
+    <input type="checkbox" id="mper-${d}" ${(Array.isArray(p?.dayTypes)?p.dayTypes:(p?.dayTypes||'').split(',')).includes(d)?'checked':''}> ${d.charAt(0).toUpperCase()+d.slice(1)}
   </label>`).join('');
   openModal(`<div class="modal-title">${p?'Edit period':'New period'}<button onclick="closeModal()">✕</button></div>
   <div class="field"><label>Label</label><input type="text" id="mper-label" value="${esc(p?.label||'')}"></div>
@@ -2474,13 +2555,20 @@ function openPeriodModal(id){
   </div>`);
 }
 async function savePeriod(existingId){
-  const days=['mon','tue','wed','thu','fri','sat','sun'];
-  const dayTypes=days.filter(d=>document.getElementById('mper-'+d)?.checked);
-  const per={id:existingId||uid(),label:document.getElementById('mper-label').value.trim(),description:document.getElementById('mper-desc').value.trim(),availableHours:parseFloat(document.getElementById('mper-hrs').value)||16,dayTypes};
-  await API.savePeriod(per);
-  if(existingId) S.periods=S.periods.filter(p=>p.id!==existingId);
-  S.periods.push(per);
-  closeModal(); renderCfgPanel('periods'); showToast('Period saved');
+  try {
+    const label=document.getElementById('mper-label').value.trim();
+    if(!label){ showToast('Label is required'); return; }
+    const days=['mon','tue','wed','thu','fri','sat','sun'];
+    const dayTypes=days.filter(d=>document.getElementById('mper-'+d)?.checked);
+    const per={id:existingId||uid(),label,
+      description:document.getElementById('mper-desc').value.trim(),
+      availableHours:parseFloat(document.getElementById('mper-hrs').value)||16,
+      dayTypes: dayTypes.join(',')};  // store as comma-string to match DB
+    await API.savePeriod(per);
+    if(existingId) S.periods=S.periods.filter(p=>p.id!==existingId);
+    S.periods.push(per);
+    closeModal(); renderCfgPanel('periods'); showToast('Period saved');
+  } catch(e) { showToast('Error saving period: '+e.message); console.error(e); }
 }
 
 // ── GENERIC DELETE ──
