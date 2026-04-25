@@ -874,14 +874,17 @@ function todayISO(){ return new Date().toISOString().slice(0,10); }
 //  LOAD ALL FROM API
 // ════════════════════════════════════════════════════════
 async function loadAll(){
-  const [areas,activities,projects,tasks,routines,events,periods,balance,actions,locations] = await Promise.all([
+  const [areas,activities,projects,tasks,routines,events,periods,balance,actions] = await Promise.all([
     API.getAreas(), API.getActivities(), API.getProjects(), API.getTasks(),
     API.getRoutines(), API.getEvents(), API.getPeriods(), API.getBalance(),
-    API.getActions(), API.getLocations(),
+    API.getActions(),
   ]);
   S.areas=areas; S.activities=activities; S.projects=projects; S.tasks=tasks;
   S.routines=routines; S.events=events; S.periods=periods; S.balance=balance;
-  S.actions=actions; S.locations=locations;
+  S.actions=actions;
+  // Locations loaded separately so a missing endpoint doesn't break everything
+  try { S.locations = await API.getLocations(); }
+  catch(e) { S.locations = []; }
 }
 
 // ════════════════════════════════════════════════════════
