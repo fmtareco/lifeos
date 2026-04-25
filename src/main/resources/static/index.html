@@ -1726,8 +1726,11 @@ function setCfgPanel(name){
 
 function setCfgAreaFilter(areaId){
   S.cfgAreaFilter=areaId;
+  S.cfgLocationFilter='all';  // reset location filter when area changes
   const sel=document.getElementById('cfg-area-filter');
   if(sel) sel.value=areaId;
+  const locSel=document.getElementById('cfg-location-filter');
+  if(locSel) locSel.value='all';
   renderCfgPanel(S.cfgPanel);
 }
 
@@ -1743,6 +1746,7 @@ function renderConfig(){
     locSel.innerHTML='<option value="all">All locations</option>'+
       S.locations.map(l=>`<option value="${l.id}" ${S.cfgLocationFilter===l.id?'selected':''}>`+
         l.label.replace(/&/g,'&amp;')+'</option>').join('');
+    locSel.value=S.cfgLocationFilter||'all';
   }
   renderCfgPanel(S.cfgPanel);
 }
@@ -1777,7 +1781,7 @@ function renderCfgActivities(){
   const af=S.cfgAreaFilter;
   const lf=S.cfgLocationFilter||'all';
   let filtered=S.activities.filter(a=>af==='all'||a.areaId===af);
-  if(lf!=='all') filtered=filtered.filter(a=>a.locationIds&&a.locationIds.split(',').includes(lf));
+  if(lf!=='all') filtered=filtered.filter(a=>!a.locationIds||a.locationIds.split(',').filter(Boolean).includes(lf));
   el.innerHTML=`<div class="section-head"><h3>Activities</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
     <button class="btn sm primary" onclick="openActivityModal(null)" style="margin-left:auto">+ activity</button></div>
   <div class="entity-list">
@@ -1805,7 +1809,7 @@ function renderCfgProjects(){
   const acFilter=S.cfgActivityFilter||'all';
   let filtered=S.projects.filter(p=>af==='all'||p.areaId===af);
   if(acFilter!=='all') filtered=filtered.filter(p=>p.activityId===acFilter);
-  if(lf!=='all') filtered=filtered.filter(p=>p.locationIds&&p.locationIds.split(',').includes(lf));
+  if(lf!=='all') filtered=filtered.filter(p=>!p.locationIds||p.locationIds.split(',').filter(Boolean).includes(lf));
   // activity filter dropdown (scoped to area filter)
   const actsForArea = af==='all'?S.activities:S.activities.filter(a=>a.areaId===af);
   const acFilterHtml=`<select onchange="S.cfgActivityFilter=this.value;renderCfgProjects()" style="font-size:11px;padding:4px 8px;margin-left:8px;">
@@ -1852,7 +1856,7 @@ function renderCfgTasks(){
     if(pjFilter!=='all'&&t.projectId!==pjFilter) return false;
     if(lf!=='all'){
       const proj=byId(S.projects,t.projectId);
-      if(!proj||!proj.locationIds||!proj.locationIds.split(',').includes(lf)) return false;
+      if(proj&&proj.locationIds&&proj.locationIds.split(',').filter(Boolean).length>0&&!proj.locationIds.split(',').includes(lf)) return false;
     }
     return true;
   });
