@@ -28,7 +28,7 @@ public class SecurityConfig {
     @Value("${app.security.username:admin}")
     private String username;
 
-    @Value("${app.security.password:changeme}")
+    @Value("${APP_PASS}")
     private String password;
 
     @Bean

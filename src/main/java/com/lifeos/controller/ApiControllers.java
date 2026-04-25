@@ -80,7 +80,7 @@ class RoutineController {
     private final RoutineRepository repo;
     @GetMapping             public List<Routine>              getAll()                            { return repo.findAll(); }
     @GetMapping("/{id}")    public ResponseEntity<Routine>    getOne(@PathVariable String id)     { return repo.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()); }
-    @PutMapping("/{id}")    public Routine                    save  (@PathVariable String id, @RequestBody Routine body) { body.setId(id); return repo.save(body); }
+    @PutMapping("/{id}")    public Routine                 save  (@PathVariable String id, @RequestBody Routine body) { body.setId(id); return repo.save(body); }
     @DeleteMapping("/{id}") public ResponseEntity<Void>       delete(@PathVariable String id)     { repo.deleteById(id); return ResponseEntity.noContent().build(); }
 }
 

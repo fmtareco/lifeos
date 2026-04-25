@@ -69,7 +69,12 @@ const API = (() => {
     savePeriod:    (p)    => put(`/periods/${p.id}`, p),
     deletePeriod:  (id)   => del(`/periods/${id}`),
 
-    // Balance
+      // Locations
+      getLocations:    ()     => get('/locations'),
+      saveLocation:    (p)    => put(`/locations/${p.id}`, p),
+      deleteLocation:  (id)   => del(`/locations/${id}`),
+
+      // Balance
     getBalance:    ()     => get('/balance'),
     saveBalance:   (b)    => put(`/balance/${b.id}`, b),
     deleteBalance: (id)   => del(`/balance/${id}`),
