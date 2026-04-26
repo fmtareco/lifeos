@@ -6,7 +6,7 @@
 <title>lifeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
-<script src="/api.js?v=7"></script>
+<script src="/api.js?v=8"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ════════════════════════════════════════════════════
@@ -757,6 +757,7 @@ input[type=range]{width:100%;accent-color:var(--accent);}
       <div style="margin-left:auto;display:flex;gap:8px;">
         <button class="btn sm" onclick="exportMD()">↓ export .md</button>
         <button class="btn sm primary" onclick="exportXLSX()">↓ export .xlsx</button>
+        <button class="btn sm" onclick="exportYAML()" style="border-color:var(--p3);color:var(--p3);">↓ config .yaml</button>
       </div>
     </div>
     <div id="history-list"></div>
@@ -779,6 +780,8 @@ input[type=range]{width:100%;accent-color:var(--accent);}
         <div style="width:1px;height:20px;background:var(--line);margin:0 2px;"></div>
         <button class="btn sm" onclick="exportMD()" style="border-color:var(--accent3);color:var(--accent3);">↓ .md</button>
         <button class="btn sm primary" onclick="exportXLSX()">↓ .xlsx</button>
+        <button class="btn sm" onclick="exportYAML()" style="border-color:var(--p3);color:var(--p3);">↓ .yaml</button>
+        <button class="btn sm ghost" onclick="triggerYAMLImport()">↑ import</button>
       </div>
     </div>
     <!-- Mobile-only panel selector -->
@@ -1509,26 +1512,82 @@ function exportMD(){
 
   // ── Configuration ──────────────────────────────────────
   md += '## Configuration\n\n';
+
+  // Locations
+  if(S.locations.length){
+    md += '### Locations\n\n';
+    S.locations.forEach(l => {
+      md += '- **' + l.label + '**' + (l.type?' ('+l.type+')':'') + (l.address?' · '+l.address:'') + (l.description?' — '+l.description:'') + '\n';
+    });
+    md += '\n';
+  }
+
+  // Periods
+  if(S.periods.length){
+    md += '### Periods\n\n';
+    S.periods.forEach(p => {
+      const daysStr = p.dayTypes ? p.dayTypes.split(',').filter(Boolean).join(', ') : 'manual';
+      md += '- **' + p.label + '** · ' + p.availableHours + 'h/day · days: ' + (daysStr||'(none)') + (p.description?' — '+p.description:'') + '\n';
+    });
+    md += '\n';
+  }
+
+  // Areas → Activities → Projects/Tasks/Routines
   S.areas.forEach(a => {
     md += '### ' + a.label + '\n\n';
     const acts = S.activities.filter(x => x.areaId === a.id);
     if(acts.length){
-      md += '**Activities:**\n';
       acts.forEach(ac => {
-        const freq = ac.goalsNum && ac.goalsPeriod ? ac.goalsNum + 'x / ' + ac.goalsPeriod : '';
-        md += '- ' + ac.label + (freq ? ' (' + freq + ')' : '') + (ac.description ? ' — ' + ac.description : '') + '\n';
+        const freq = ac.goalsNum && ac.goalsPeriod ? ac.goalsNum + 'x/' + ac.goalsPeriod : (ac.goals||'');
+        const acLocs = (ac.locationIds||'').split(',').filter(Boolean).map(id=>byId(S.locations,id)?.label).filter(Boolean).join(', ');
+        md += '#### Activity: ' + ac.label + (freq?' [goal: '+freq+']':'') + '\n';
+        if(ac.description) md += ac.description + '\n';
+        if(acLocs) md += 'Locations: ' + acLocs + '\n';
+        md += '\n';
+
+        // Projects
         S.projects.filter(p => p.activityId === ac.id).forEach(p => {
-          md += '  - Project: ' + p.label + ' [' + (p.status||'todo') + ']' + (p.deadline ? ' · due ' + p.deadline : '') + '\n';
-          S.tasks.filter(t => t.projectId === p.id && t.status !== 'done').forEach(t => {
-            md += '    - Task: ' + t.label + (t.deadline ? ' · due ' + t.deadline : '') + ' [' + (t.priority||'') + ']\n';
+          const pLocs = (p.locationIds||'').split(',').filter(Boolean).map(id=>byId(S.locations,id)?.label).filter(Boolean).join(', ');
+          md += '##### Project: ' + p.label + ' [' + (p.status||'todo') + ']' + (p.deadline?' · due '+p.deadline:'') + '\n';
+          if(p.description) md += p.description + '\n';
+          if(p.goals) md += 'Goals: ' + p.goals + '\n';
+          if(pLocs) md += 'Locations: ' + pLocs + '\n';
+          if(p.dependsOnProjectId){ const dep=byId(S.projects,p.dependsOnProjectId); if(dep) md+='Depends on: '+dep.label+'\n'; }
+          // Tasks
+          S.tasks.filter(t => t.projectId === p.id).forEach(t => {
+            const status = t.status==='done'?'[x]':'[ ]';
+            md += '- '+status+' **'+t.label+'**'+(t.priority?' ['+t.priority+']':'')+(t.deadline?' · due '+t.deadline:'')+(t.estimatedMin?' · ~'+t.estimatedMin+'min':'')+'\n';
+            if(t.description) md += '  '+t.description+'\n';
+            if(t.dependsOnTaskId){ const dep=byId(S.tasks,t.dependsOnTaskId); if(dep) md+='  🔒 depends on: '+dep.label+'\n'; }
+            if(t.activationDate) md+='  active from: '+t.activationDate+'\n';
           });
+          md += '\n';
         });
+
+        // Routines
         S.routines.filter(r => r.activityId === ac.id).forEach(r => {
-          md += '  - Routine: ' + r.label + (r.freqNum && r.freqPeriod ? ' ' + r.freqNum + 'x/' + r.freqPeriod : '') + '\n';
+          const rLoc = r.locationId?byId(S.locations,r.locationId)?.label:'';
+          const rPer = (r.applicablePeriods||'').split(',').filter(Boolean).map(id=>byId(S.periods,id)?.label).filter(Boolean).join(', ');
+          md += '- Routine: **'+r.label+'**'+(r.freqNum&&r.freqPeriod?' · '+r.freqNum+'x/'+r.freqPeriod:'')+(r.durationMin?' · '+r.durationMin+'min':'')+(rLoc?' @ '+rLoc:'')+(rPer?' · periods: '+rPer:'')+'\n';
+          if(r.description) md += '  '+r.description+'\n';
         });
+      });
+    }
+    // Tasks not linked to a project (area-level tasks)
+    const looseTasks = S.tasks.filter(t=>t.areaId===a.id&&!t.projectId);
+    if(looseTasks.length){
+      md += '#### Loose tasks\n';
+      looseTasks.forEach(t=>{
+        md += '- ['+(t.status==='done'?'x':' ')+'] '+t.label+(t.deadline?' · due '+t.deadline:'')+'\n';
       });
       md += '\n';
     }
+    // Events
+    S.events.filter(ev=>ev.areaId===a.id).forEach(ev=>{
+      const freqStr=ev.frequency==='weekly'?'weekly ('+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][ev.dayOfWeek]+')':ev.frequency==='once'?'once ('+ev.date+')':ev.frequency||'';
+      md += '- Event: **'+ev.label+'** · '+freqStr+(ev.durationMin?' · '+ev.durationMin+'min':'')+'\n';
+    });
+    md += '\n';
   });
 
   // ── Balance ────────────────────────────────────────────
@@ -1620,7 +1679,8 @@ function exportXLSX(){
         const type    = a.routineId?'routine':a.taskId?'task':a.eventId?'event':'free';
         const activityId = a.routineId ? byId(S.routines,a.routineId)?.activityId : a.activityId;
         const activity = activityOf(activityId);
-        const resources = (a.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join(' | ');
+        const aRes = typeof a.resources==='string'?JSON.parse(a.resources||'[]'):(a.resources||[]);
+        const resources = aRes.map(r=>r.url+(r.desc?' — '+r.desc:'')).join(' | ');
         rows.push([
           d,
           result.score!==null ? result.score : '',
@@ -1725,13 +1785,15 @@ function exportXLSX(){
     S.routines.forEach(r => {
       const ac   = activityOf(r.activityId);
       const area = areaOf(ac?.areaId);
-      const res  = (r.resources||[]).map(rv=>rv.url+(rv.desc?' — '+rv.desc:'')).join(' | ');
+      const rRes = typeof r.resources==='string'?JSON.parse(r.resources||'[]'):(r.resources||[]);
+      const res  = rRes.map(rv=>rv.url+(rv.desc?' — '+rv.desc:'')).join(' | ');
       rows.push(['routine', r.id, r.label, area?.label||'', ac?.label||'', r.frequency||'', r.durationMin||'', r.description||'', res]);
     });
     S.events.forEach(ev => {
       const area = areaOf(ev.areaId);
       const freq = ev.frequency==='weekly'?`weekly (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][ev.dayOfWeek]||'?'})`:ev.frequency==='once'?`once (${ev.date})`:ev.frequency||'';
-      const res  = (ev.resources||[]).map(rv=>rv.url+(rv.desc?' — '+rv.desc:'')).join(' | ');
+      const evRes = typeof ev.resources==='string'?JSON.parse(ev.resources||'[]'):(ev.resources||[]);
+      const res  = evRes.map(rv=>rv.url+(rv.desc?' — '+rv.desc:'')).join(' | ');
       rows.push(['event', ev.id, ev.label, area?.label||'', '', freq, ev.durationMin||'', ev.description||'', res]);
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -2062,7 +2124,7 @@ function renderCfgEvents(){
           </div>
         </div>
         <div class="entity-actions">
-          <button class="btn sm ghost" onclick="openEventModal('${ev.id}')">✎</button>
+          <button class="btn sm ghost" onclick="openEventModal('${ev.id}')">✎ edit</button>
           <button class="btn sm danger" onclick="deleteEntity('events','${ev.id}')">✕</button>
         </div>
       </div>`;}).join('')||`<div class="empty">No events${af!=='all'?' in this area':''}.</div>`}
@@ -2778,14 +2840,14 @@ function openRoutineModal(id){
     </select>
   </div>
   <div id="mr-dom-wrap" class="field" style="display:none"><label>Preferred day of month (1–31)</label>
-    <input type="number" id="mr-dom" min="1" max="31" value="${r?.dayOfMonth||1}" onclick="this.select()" style="width:80px">
+    <input type="number" id="mr-dom" min="1" max="31" value="${r?.dayOfMonth||1}" style="width:80px">
   </div>
   <div id="mr-doy-wrap" class="field" style="display:none"><label>Preferred date (month/day)</label>
     <div style="display:flex;gap:8px;">
       <select id="mr-doy-month" style="flex:1">
         ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i)=>`<option value="${i+1}" ${r?.yearMonth===i+1?'selected':''}>${m}</option>`).join('')}
       </select>
-      <input type="number" id="mr-doy-day" min="1" max="31" value="${r?.yearDay||1}" style="width:70px" placeholder="day" onclick="this.select()">
+      <input type="number" id="mr-doy-day" min="1" max="31" value="${r?.yearDay||1}" style="width:70px" placeholder="day">
     </div>
   </div>
   <div class="field"><label>Trigger event (instead of frequency)</label><select id="mr-event">${eventOpts}</select></div>
@@ -2832,6 +2894,7 @@ function onRoutineFreqChange(){
 }
 async function saveRoutine(existingId){
   try {
+    if(!document.getElementById('mr-label')){ showToast('Form is closed'); return; }
     const label=document.getElementById('mr-label').value.trim();
     if(!label){ showToast('Label is required'); return; }
     const resRaw=document.getElementById('mr-res').value.trim();
@@ -3030,6 +3093,170 @@ async function deleteEntity(store,id){
   closeModal();
   renderPage(S.currentPage);
   showToast('Deleted');
+}
+
+// ════════════════════════════════════════════════════════
+//  EXPORT YAML (full configuration)
+// ════════════════════════════════════════════════════════
+function exportYAML(){
+  function yamlStr(s){ return s?'"'+String(s).replace(/"/g,'\\"')+'"':'""'; }
+  function yamlVal(v){
+    if(v===null||v===undefined) return 'null';
+    if(typeof v==='number') return String(v);
+    if(typeof v==='boolean') return String(v);
+    return yamlStr(v);
+  }
+  function indent(s,n){ return s.split('\\n').map(l=>l?'  '.repeat(n)+l:l).join('\\n'); }
+
+  let y = '# lifeOS configuration export\\n# generated: '+S.todayDate+'\\n\\n';
+
+  y += 'areas:\\n';
+  S.areas.forEach(a => {
+    y += '  - id: '+yamlStr(a.id)+'\\n';
+    y += '    label: '+yamlStr(a.label)+'\\n';
+    y += '    color: '+yamlStr(a.color)+'\\n';
+  });
+
+  y += '\\nlocations:\\n';
+  if(!S.locations.length) y += '  []\\n';
+  S.locations.forEach(l => {
+    y += '  - id: '+yamlStr(l.id)+'\\n';
+    y += '    label: '+yamlStr(l.label)+'\\n';
+    if(l.type)    y += '    type: '+yamlStr(l.type)+'\\n';
+    if(l.address) y += '    address: '+yamlStr(l.address)+'\\n';
+    if(l.description) y += '    description: '+yamlStr(l.description)+'\\n';
+  });
+
+  y += '\\nperiods:\\n';
+  S.periods.forEach(p => {
+    y += '  - id: '+yamlStr(p.id)+'\\n';
+    y += '    label: '+yamlStr(p.label)+'\\n';
+    y += '    availableHours: '+yamlVal(p.availableHours)+'\\n';
+    y += '    dayTypes: '+yamlStr(p.dayTypes||'')+'\\n';
+    if(p.description) y += '    description: '+yamlStr(p.description)+'\\n';
+  });
+
+  y += '\\nbalance:\\n';
+  S.periods.forEach(per => {
+    y += '  '+per.label+':\\n';
+    S.areas.forEach(a => {
+      const b = S.balance.find(x=>x.periodId===per.id&&x.areaId===a.id);
+      y += '    '+a.label+': '+(b?.weightPct||0)+'\\n';
+    });
+  });
+
+  y += '\\nactivities:\\n';
+  S.activities.forEach(ac => {
+    const area = areaOf(ac.areaId);
+    y += '  - id: '+yamlStr(ac.id)+'\\n';
+    y += '    label: '+yamlStr(ac.label)+'\\n';
+    y += '    area: '+yamlStr(area?.label||ac.areaId||'')+'\\n';
+    if(ac.description) y += '    description: '+yamlStr(ac.description)+'\\n';
+    if(ac.goalsNum)    y += '    goalsNum: '+ac.goalsNum+'\\n';
+    if(ac.goalsPeriod) y += '    goalsPeriod: '+yamlStr(ac.goalsPeriod)+'\\n';
+    if(ac.locationIds){ const locs=(ac.locationIds).split(',').filter(Boolean).map(id=>byId(S.locations,id)?.label).filter(Boolean); if(locs.length) y += '    locations: ['+locs.map(l=>yamlStr(l)).join(', ')+']\\n'; }
+  });
+
+  y += '\\nroutines:\\n';
+  S.routines.forEach(r => {
+    const ac = activityOf(r.activityId);
+    const area = areaOf(ac?.areaId);
+    const loc = r.locationId?byId(S.locations,r.locationId):null;
+    const perLabels = (r.applicablePeriods||'').split(',').filter(Boolean).map(id=>byId(S.periods,id)?.label).filter(Boolean);
+    y += '  - id: '+yamlStr(r.id)+'\\n';
+    y += '    label: '+yamlStr(r.label)+'\\n';
+    if(area)  y += '    area: '+yamlStr(area.label)+'\\n';
+    if(ac)    y += '    activity: '+yamlStr(ac.label)+'\\n';
+    if(r.description) y += '    description: '+yamlStr(r.description)+'\\n';
+    y += '    frequency: '+yamlVal(r.freqNum||1)+' x '+yamlStr(r.freqPeriod||r.frequency||'day')+'\\n';
+    if(r.durationMin) y += '    durationMin: '+r.durationMin+'\\n';
+    if(r.dayOfWeek!==null&&r.dayOfWeek!==undefined) y += '    dayOfWeek: '+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][r.dayOfWeek]+'\\n';
+    if(r.dayOfMonth)  y += '    dayOfMonth: '+r.dayOfMonth+'\\n';
+    if(loc)   y += '    location: '+yamlStr(loc.label)+'\\n';
+    if(perLabels.length) y += '    applicablePeriods: ['+perLabels.map(l=>yamlStr(l)).join(', ')+']\\n';
+  });
+
+  y += '\\nevents:\\n';
+  if(!S.events.length) y += '  []\\n';
+  S.events.forEach(ev => {
+    const area = areaOf(ev.areaId);
+    y += '  - id: '+yamlStr(ev.id)+'\\n';
+    y += '    label: '+yamlStr(ev.label)+'\\n';
+    if(area) y += '    area: '+yamlStr(area.label)+'\\n';
+    if(ev.description) y += '    description: '+yamlStr(ev.description)+'\\n';
+    y += '    frequency: '+yamlStr(ev.frequency||'once')+'\\n';
+    if(ev.durationMin) y += '    durationMin: '+ev.durationMin+'\\n';
+    if(ev.date) y += '    date: '+yamlStr(ev.date)+'\\n';
+    if(ev.dayOfWeek!==null&&ev.dayOfWeek!==undefined) y += '    dayOfWeek: '+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][ev.dayOfWeek]+'\\n';
+    if(ev.dayOfMonth) y += '    dayOfMonth: '+ev.dayOfMonth+'\\n';
+  });
+
+  y += '\\nprojects:\\n';
+  S.projects.forEach(p => {
+    const area = areaOf(p.areaId);
+    const act = activityOf(p.activityId);
+    const dep = byId(S.projects, p.dependsOnProjectId);
+    const pLocs = (p.locationIds||'').split(',').filter(Boolean).map(id=>byId(S.locations,id)?.label).filter(Boolean);
+    y += '  - id: '+yamlStr(p.id)+'\\n';
+    y += '    label: '+yamlStr(p.label)+'\\n';
+    y += '    status: '+yamlStr(p.status||'todo')+'\\n';
+    if(area) y += '    area: '+yamlStr(area.label)+'\\n';
+    if(act)  y += '    activity: '+yamlStr(act.label)+'\\n';
+    if(p.deadline) y += '    deadline: '+yamlStr(p.deadline)+'\\n';
+    if(p.goals) y += '    goals: '+yamlStr(p.goals)+'\\n';
+    if(p.description) y += '    description: '+yamlStr(p.description)+'\\n';
+    if(dep)  y += '    dependsOn: '+yamlStr(dep.label)+'\\n';
+    if(pLocs.length) y += '    locations: ['+pLocs.map(l=>yamlStr(l)).join(', ')+']\\n';
+    const tasks = S.tasks.filter(t=>t.projectId===p.id);
+    if(tasks.length){
+      y += '    tasks:\\n';
+      tasks.forEach(t => {
+        y += '      - label: '+yamlStr(t.label)+'\\n';
+        y += '        status: '+yamlStr(t.status||'todo')+'\\n';
+        if(t.priority)    y += '        priority: '+yamlStr(t.priority)+'\\n';
+        if(t.deadline)    y += '        deadline: '+yamlStr(t.deadline)+'\\n';
+        if(t.estimatedMin)y += '        estimatedMin: '+t.estimatedMin+'\\n';
+        if(t.description) y += '        description: '+yamlStr(t.description)+'\\n';
+        if(t.activationDate) y += '        activationDate: '+yamlStr(t.activationDate)+'\\n';
+        if(t.dependsOnTaskId){ const dep=byId(S.tasks,t.dependsOnTaskId); if(dep) y+='        dependsOn: '+yamlStr(dep.label)+'\\n'; }
+      });
+    }
+  });
+
+  const blob = new Blob([y], {type:'text/yaml'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'lifeos-config-'+S.todayDate+'.yaml';
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showToast('↓ Exported lifeos-config.yaml');
+}
+
+// ════════════════════════════════════════════════════════
+//  IMPORT YAML
+// ════════════════════════════════════════════════════════
+function triggerYAMLImport(){
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept='.yaml,.yml';
+  inp.onchange = async e => {
+    const file = e.target.files[0]; if(!file) return;
+    const text = await file.text();
+    openModal(`<div class="modal-title">Import YAML<button onclick="closeModal()">✕</button></div>
+    <div style="font-size:12px;color:var(--ink2);margin-bottom:16px;">
+      This will import from <strong>${esc(file.name)}</strong>.<br>
+      <span style="color:var(--danger)">Existing data will NOT be deleted.</span> Items with matching IDs will be updated; new ones will be created.
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">cancel</button>
+      <button class="btn primary" onclick="confirmYAMLImport(${JSON.stringify(text).replace(/</g,'&lt;')})">import</button>
+    </div>`);
+  };
+  inp.click();
+}
+
+async function confirmYAMLImport(yamlText){
+  closeModal();
+  showToast('Import from YAML is not yet supported in-browser. Please use the exported YAML as a reference to manually recreate items, or restore from a database backup.');
 }
 </script>
 
