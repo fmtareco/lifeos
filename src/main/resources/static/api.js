@@ -69,12 +69,7 @@ const API = (() => {
     savePeriod:    (p)    => put(`/periods/${p.id}`, p),
     deletePeriod:  (id)   => del(`/periods/${id}`),
 
-      // Locations
-      getLocations:    ()     => get('/locations'),
-      saveLocation:    (p)    => put(`/locations/${p.id}`, p),
-      deleteLocation:  (id)   => del(`/locations/${id}`),
-
-      // Balance
+    // Balance
     getBalance:    ()     => get('/balance'),
     saveBalance:   (b)    => put(`/balance/${b.id}`, b),
     deleteBalance: (id)   => del(`/balance/${id}`),
@@ -93,6 +88,11 @@ const API = (() => {
 
     // Agenda suggestions
     getSuggestions: (date) => get(`/agenda/suggest/${date}`),
+
+    // Locations
+    getLocations:    ()    => get('/locations'),
+    saveLocation:    (l)   => put('/locations/'+l.id, l),
+    deleteLocation:  (id)  => del('/locations/'+id),
 
     // Auth
     logout: () => fetch('/logout', {

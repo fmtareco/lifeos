@@ -41,9 +41,9 @@ public class Routine {
     @Column(columnDefinition = "TEXT")
     private String applicablePeriods;
 
-    /** Location IDs (comma-separated) */
-    @Column(columnDefinition = "TEXT")
-    private String locationIds;
+    /** Primary location for this routine */
+    @Column(length = 64)
+    private String locationId;
 
     @Column(columnDefinition = "TEXT")
     private String resources;
