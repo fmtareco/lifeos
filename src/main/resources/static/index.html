@@ -6,7 +6,7 @@
 <title>lifeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
-<script src="/api.js?v=5"></script>
+<script src="/api.js?v=6"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ════════════════════════════════════════════════════
@@ -1502,28 +1502,80 @@ function toggleHistoryDetail(d){
 //  EXPORT MD
 // ════════════════════════════════════════════════════════
 function exportMD(){
-  let md=`# lifeOS export — ${S.todayDate}\n\n`;
-  const datesWithActions=[...new Set(S.actions.map(a=>a.date))].sort().reverse();
-  datesWithActions.forEach(d=>{
-    const acts=S.actions.filter(a=>a.date===d);
-    const result=computeDayScore(d);
-    md+=`## ${d}  (score: ${result.score!==null?result.score:'—'})\n\n`;
-    acts.forEach(a=>{
-      const name=a.label||resolveActionLabel(a);
-      const dur=a.durationMin?` · ${fmtMin(a.durationMin)}`:'';
-      const perf=a.performance?` · perf: ${a.performance}/10`:'';
-      const notes=a.notes?`\n  > ${a.notes}`:'';
-      md+=`- [${a.skipped?'skipped':'x'}] ${name}${dur}${perf}${notes}\n`;
-    });
-    md+='\n';
+  let md = '# lifeOS — ' + S.todayDate + '\n\n';
+
+  // ── Configuration ──────────────────────────────────────
+  md += '## Configuration\n\n';
+  S.areas.forEach(a => {
+    md += '### ' + a.label + '\n\n';
+    const acts = S.activities.filter(x => x.areaId === a.id);
+    if(acts.length){
+      md += '**Activities:**\n';
+      acts.forEach(ac => {
+        const freq = ac.goalsNum && ac.goalsPeriod ? ac.goalsNum + 'x / ' + ac.goalsPeriod : '';
+        md += '- ' + ac.label + (freq ? ' (' + freq + ')' : '') + (ac.description ? ' — ' + ac.description : '') + '\n';
+        S.projects.filter(p => p.activityId === ac.id).forEach(p => {
+          md += '  - Project: ' + p.label + ' [' + (p.status||'todo') + ']' + (p.deadline ? ' · due ' + p.deadline : '') + '\n';
+          S.tasks.filter(t => t.projectId === p.id && t.status !== 'done').forEach(t => {
+            md += '    - Task: ' + t.label + (t.deadline ? ' · due ' + t.deadline : '') + ' [' + (t.priority||'') + ']\n';
+          });
+        });
+        S.routines.filter(r => r.activityId === ac.id).forEach(r => {
+          md += '  - Routine: ' + r.label + (r.freqNum && r.freqPeriod ? ' ' + r.freqNum + 'x/' + r.freqPeriod : '') + '\n';
+        });
+      });
+      md += '\n';
+    }
   });
-  const blob=new Blob([md],{type:'text/markdown'});
-  const link=document.createElement('a');
-  link.href=URL.createObjectURL(blob);
-  link.download=`lifeos-${S.todayDate}.md`;
+
+  // ── Balance ────────────────────────────────────────────
+  md += '## Balance Weights\n\n';
+  S.periods.forEach(per => {
+    md += '### ' + per.label + ' (' + per.availableHours + 'h)\n';
+    const weights = S.balance.filter(b => b.periodId === per.id);
+    weights.sort((a,b) => b.weightPct - a.weightPct).forEach(b => {
+      const area = areaOf(b.areaId);
+      if(area && b.weightPct > 0) md += '- ' + area.label + ': ' + b.weightPct + '% (' + Math.round(b.weightPct/100*per.availableHours*60) + ' min)\n';
+    });
+    md += '\n';
+  });
+
+  // ── Today's agenda ─────────────────────────────────────
+  const suggestions = generateAgendaSuggestions();
+  if(suggestions.length){
+    md += '## Agenda — ' + S.todayDate + '\n\n';
+    suggestions.forEach(s => {
+      const area = areaOf(s.areaId);
+      const dl = s.daysLeft !== undefined ? ' · ' + (s.daysLeft < 0 ? Math.abs(s.daysLeft) + 'd overdue' : s.daysLeft + 'd left') : '';
+      md += '- [ ] ' + s.label + ' (' + s.type + ')' + (area ? ' · ' + area.label : '') + dl + '\n';
+    });
+    md += '\n';
+  }
+
+  // ── History log ────────────────────────────────────────
+  md += '## History Log\n\n';
+  const datesWithActions = [...new Set(S.actions.map(a => a.date))].sort().reverse();
+  datesWithActions.forEach(d => {
+    const acts = S.actions.filter(a => a.date === d);
+    const result = computeDayScore(d);
+    md += '### ' + d + '  (score: ' + (result.score !== null ? result.score : '—') + ')\n\n';
+    acts.forEach(a => {
+      const name = a.label || resolveActionLabel(a);
+      const dur  = a.durationMin ? ' · ' + fmtMin(a.durationMin) : '';
+      const perf = a.performance ? ' · perf: ' + a.performance + '/10' : '';
+      const notes = a.notes ? '\n  > ' + a.notes : '';
+      md += '- [' + (a.skipped ? 'skipped' : 'x') + '] ' + name + dur + perf + notes + '\n';
+    });
+    md += '\n';
+  });
+
+  const blob = new Blob([md], {type:'text/markdown'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'lifeos-' + S.todayDate + '.md';
   link.click();
   URL.revokeObjectURL(link.href);
-  showToast('Exported history.md');
+  showToast('Exported lifeos.md');
 }
 
 // ════════════════════════════════════════════════════════
@@ -1705,8 +1757,49 @@ function exportXLSX(){
   }
 
   // ── Write & download ─────────────────────────────────
-  XLSX.writeFile(wb, `lifeos-${S.todayDate}.xlsx`);
-  showToast('↓ Exported lifeos.xlsx — 6 sheets');
+  // ── Sheet 7: Activities Config ───────────────────────
+  {
+    const rows=[['Area','Activity','Goals','Description']];
+    S.areas.forEach(a=>{
+      S.activities.filter(x=>x.areaId===a.id).forEach(ac=>{
+        const freq=ac.goalsNum&&ac.goalsPeriod?ac.goalsNum+'x/'+ac.goalsPeriod:(ac.goals||'');
+        rows.push([a.label,ac.label,freq,ac.description||'']);
+      });
+    });
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    setColWidths(ws,[20,24,14,40]);
+    ws['!freeze']={xSplit:0,ySplit:1};
+    XLSX.utils.book_append_sheet(wb,ws,'Activities');
+  }
+
+  // ── Sheet 8: Today's Agenda ───────────────────────────
+  {
+    const rows=[['Type','Label','Area','Duration (min)','Deadline','Days Left']];
+    const suggestions=generateAgendaSuggestions();
+    suggestions.forEach(s=>{
+      const area=areaOf(s.areaId);
+      rows.push([s.type,s.label,area?.label||'',s.durationMin||'',
+        s.daysLeft!==undefined?(new Date(new Date().getTime()+s.daysLeft*86400000).toISOString().slice(0,10)):'',
+        s.daysLeft!==undefined?s.daysLeft:''
+      ]);
+    });
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    setColWidths(ws,[10,36,18,14,12,10]);
+    ws['!freeze']={xSplit:0,ySplit:1};
+    XLSX.utils.book_append_sheet(wb,ws,'Today Agenda');
+  }
+
+  // ── Sheet 9: Locations ────────────────────────────────
+  {
+    const rows=[['ID','Label','Type','Address','Description']];
+    S.locations.forEach(l=>rows.push([l.id,l.label,l.type||'',l.address||'',l.description||'']));
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    setColWidths(ws,[16,24,12,30,40]);
+    XLSX.utils.book_append_sheet(wb,ws,'Locations');
+  }
+
+  XLSX.writeFile(wb, 'lifeos-'+S.todayDate+'.xlsx');
+  showToast('↓ Exported lifeos.xlsx — 9 sheets');
 }
 </script>
 
@@ -2163,11 +2256,21 @@ function openLogModal(existingAction, defaultType, defaultId){
         <option value="task"    ${a.taskId?'selected':''}>Task</option>
         <option value="event"   ${a.eventId?'selected':''}>Event</option>
       </select></div>
-    <div class="field" id="m-ref-field"><label>Reference</label>
-      <select id="m-ref"></select></div>
+    <div class="field" id="m-ref-field" style="display:none"><label>Reference</label>
+      <select id="m-ref" onchange="onLogRefChange()"></select></div>
+  </div>
+  <div class="grid2" id="m-filter-row">
+    <div class="field"><label>Filter by area</label>
+      <select id="m-filter-area" onchange="onLogTypeChange()">
+        <option value="">All areas</option>${areaOptions('')}
+      </select></div>
+    <div class="field"><label>Filter by activity</label>
+      <select id="m-filter-activity" onchange="onLogTypeChange()">
+        <option value="">All activities</option>
+      </select></div>
   </div>
   <div class="grid2">
-    <div class="field"><label>Area (override)</label>
+    <div class="field"><label>Area (log override)</label>
       <select id="m-area"><option value="">auto</option>${areaOptions(a.areaId||'')}</select></div>
     <div class="field"><label>Date</label>
       <input type="date" id="m-date" value="${a.date||S.todayDate}"></div>
@@ -2190,19 +2293,71 @@ function openLogModal(existingAction, defaultType, defaultId){
   // pre-fill type/ref
   const type=a.routineId?'routine':a.taskId?'task':a.eventId?'event':'free';
   document.getElementById('m-type').value=defaultType||type;
-  if(defaultId&&defaultType) { setTimeout(()=>{ onLogTypeChange(); setTimeout(()=>{ const sel=document.getElementById('m-ref'); if(sel) sel.value=defaultId; },50); },50); }
-  else onLogTypeChange();
+  setTimeout(()=>{
+    onLogTypeChange();
+    if(defaultId&&defaultType){
+      setTimeout(()=>{
+        const sel=document.getElementById('m-ref');
+        if(sel){ sel.value=defaultId; onLogRefChange(); }
+      },60);
+    }
+  },10);
 }
 
 function onLogTypeChange(){
   const t=document.getElementById('m-type').value;
   const ref=document.getElementById('m-ref');
   const field=document.getElementById('m-ref-field');
-  if(t==='routine') ref.innerHTML=routineOptions('');
-  else if(t==='task') ref.innerHTML=taskOptions('');
-  else if(t==='event') ref.innerHTML=eventOptions('');
-  else { field.style.display='none'; return; }
+  const filterArea=document.getElementById('m-filter-area')?.value||'';
+  const filterAct=document.getElementById('m-filter-activity')?.value||'';
+  const filterRow=document.getElementById('m-filter-row');
+
+  // Update activity filter based on area
+  const actSel=document.getElementById('m-filter-activity');
+  if(actSel){
+    const curAct=actSel.value;
+    const acts=filterArea?S.activities.filter(a=>a.areaId===filterArea):S.activities;
+    actSel.innerHTML='<option value="">All activities</option>'+acts.map(a=>`<option value="${a.id}" ${curAct===a.id?'selected':''}>${esc(a.label)}</option>`).join('');
+  }
+
+  if(t==='free'){ field.style.display='none'; if(filterRow) filterRow.style.display='none'; return; }
+  if(filterRow) filterRow.style.display='';
   field.style.display='';
+
+  if(t==='routine'){
+    let items=S.routines;
+    if(filterArea) items=items.filter(r=>{ const ac=byId(S.activities,r.activityId); return ac?.areaId===filterArea; });
+    if(filterAct)  items=items.filter(r=>r.activityId===filterAct);
+    ref.innerHTML=items.map(r=>`<option value="${r.id}">${esc(r.label)}</option>`).join('');
+  } else if(t==='task'){
+    let items=S.tasks.filter(t=>t.status!=='done');
+    if(filterArea) items=items.filter(t=>t.areaId===filterArea);
+    if(filterAct)  items=items.filter(t=>t.activityId===filterAct);
+    ref.innerHTML=items.map(t=>`<option value="${t.id}">${esc(t.label)}</option>`).join('');
+  } else if(t==='event'){
+    let items=S.events;
+    if(filterArea) items=items.filter(e=>e.areaId===filterArea);
+    ref.innerHTML=items.map(e=>`<option value="${e.id}">${esc(e.label)}</option>`).join('');
+  }
+  if(!ref.value && ref.options.length>0) ref.value=ref.options[0].value;
+  onLogRefChange();
+}
+
+function onLogRefChange(){
+  const t=document.getElementById('m-type')?.value;
+  const refSel=document.getElementById('m-ref');
+  const refId=refSel?.value;
+  if(!refId||t==='free') return;
+  let name='';
+  if(t==='routine'){ const r=byId(S.routines,refId); name=r?.label||''; }
+  else if(t==='task'){ const tk=byId(S.tasks,refId); name=tk?.label||''; }
+  else if(t==='event'){ const ev=byId(S.events,refId); name=ev?.label||''; }
+  // Auto-fill label only if it's empty or matches a previous auto-fill
+  const labelEl=document.getElementById('m-label');
+  if(labelEl&&(!labelEl.value||labelEl.dataset.autofilled==='true')){
+    labelEl.value=name;
+    labelEl.dataset.autofilled='true';
+  }
 }
 
 async function saveLogAction(existingId){
@@ -2568,12 +2723,28 @@ function openRoutineModal(id){
       <div style="display:flex;gap:6px;align-items:center;">
         <input type="number" id="mr-freq-num" min="1" value="${r?.freqNum||1}" style="width:64px">
         <span style="color:var(--ink3);font-size:12px;">× per</span>
-        <select id="mr-freq-period" style="flex:1">
+        <select id="mr-freq-period" onchange="onRoutineFreqChange()" style="flex:1">
           ${FREQ_PERIODS.map(p=>`<option value="${p}" ${(r?.freqPeriod||'day')===p?'selected':''}>${p}</option>`).join('')}
         </select>
       </div>
     </div>
     <div class="field"><label>Duration (min)</label><input type="number" id="mr-dur" value="${r?.durationMin||''}" placeholder="30"></div>
+  </div>
+  <div id="mr-dow-wrap" class="field" style="display:none"><label>Preferred day of week</label>
+    <select id="mr-dow">
+      ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((d,i)=>`<option value="${i}" ${r?.dayOfWeek===i?'selected':''}>${d}</option>`).join('')}
+    </select>
+  </div>
+  <div id="mr-dom-wrap" class="field" style="display:none"><label>Preferred day of month</label>
+    <input type="number" id="mr-dom" min="1" max="31" value="${r?.dayOfMonth||1}">
+  </div>
+  <div id="mr-doy-wrap" class="field" style="display:none"><label>Preferred date (month/day)</label>
+    <div style="display:flex;gap:8px;">
+      <select id="mr-doy-month" style="flex:1">
+        ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i)=>`<option value="${i+1}" ${r?.yearMonth===i+1?'selected':''}>${m}</option>`).join('')}
+      </select>
+      <input type="number" id="mr-doy-day" min="1" max="31" value="${r?.yearDay||1}" style="width:70px" placeholder="day">
+    </div>
   </div>
   <div class="field"><label>Trigger event (instead of frequency)</label><select id="mr-event">${eventOpts}</select></div>
   <div class="field"><label>Applicable periods <span style="font-size:10px;color:var(--ink3);font-weight:normal;">(leave all unchecked = applies to all)</span></label>
@@ -2592,10 +2763,19 @@ function openRoutineModal(id){
     <button class="btn primary" onclick="saveRoutine('${id||''}')">save</button>
   </div>`);
 }
+// trigger frequency day-field visibility after modal renders
 function onRoutineAreaChange(){
   const areaId=document.getElementById('mr-area').value||null;
   const actSel=document.getElementById('mr-activity');
   actSel.innerHTML='<option value="">—</option>'+activityOptions('',areaId);
+}
+function onRoutineFreqChange(){
+  const p=document.getElementById('mr-freq-period').value;
+  const numEl=document.getElementById('mr-freq-num');
+  const isOnce=parseInt(numEl?.value||1)===1;
+  document.getElementById('mr-dow-wrap').style.display = p==='week'&&isOnce?'':'none';
+  document.getElementById('mr-dom-wrap').style.display = p==='month'&&isOnce?'':'none';
+  document.getElementById('mr-doy-wrap').style.display = p==='year'&&isOnce?'':'none';
 }
 async function saveRoutine(existingId){
   try {
@@ -2616,6 +2796,10 @@ async function saveRoutine(existingId){
       eventId:document.getElementById('mr-event').value||null,
       applicablePeriods: Array.isArray(applicablePeriods)?applicablePeriods.join(','):applicablePeriods,
       locationId: document.getElementById('mr-location')?.value||null,
+      dayOfWeek:  freqPeriod==='week' ?parseInt(document.getElementById('mr-dow')?.value)||null:null,
+      dayOfMonth: freqPeriod==='month'?parseInt(document.getElementById('mr-dom')?.value)||null:null,
+      yearMonth:  freqPeriod==='year' ?parseInt(document.getElementById('mr-doy-month')?.value)||null:null,
+      yearDay:    freqPeriod==='year' ?parseInt(document.getElementById('mr-doy-day')?.value)||null:null,
       resources: JSON.stringify(resources)
     };
     await API.saveRoutine(routine);

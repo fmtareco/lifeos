@@ -45,6 +45,12 @@ public class Routine {
     @Column(length = 64)
     private String locationId;
 
+    /** Optional scheduling hints */
+    private Integer dayOfWeek;   // 0=Sun for weekly routines
+    private Integer dayOfMonth;  // 1-31 for monthly routines
+    private Integer yearMonth;   // 1-12 for yearly routines
+    private Integer yearDay;     // 1-31 for yearly routines
+
     @Column(columnDefinition = "TEXT")
     private String resources;
 }
