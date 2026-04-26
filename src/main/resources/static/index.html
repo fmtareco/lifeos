@@ -766,16 +766,19 @@ input[type=range]{width:100%;accent-color:var(--accent);}
   <div class="page" id="page-config">
     <div class="page-title">
       Configure
-      <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-style:normal;">filter area</span>
-        <select id="cfg-area-filter" onchange="setCfgAreaFilter(this.value)" style="width:180px;font-size:11px;padding:5px 8px;">
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-style:normal;">area</span>
+        <select id="cfg-area-filter" onchange="setCfgAreaFilter(this.value)" style="width:150px;font-size:11px;padding:5px 8px;">
           <option value="all">All areas</option>
         </select>
-        <button class="btn sm ghost" onclick="setCfgAreaFilter('all')" title="clear filter" style="padding:5px 8px;">✕ clear</button>
-        <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-style:normal;margin-left:8px;">location</span>
-        <select id="cfg-location-filter" onchange="S.cfgLocationFilter=this.value;renderCfgPanel(S.cfgPanel)" style="width:140px;font-size:11px;padding:5px 8px;">
+        <button class="btn sm ghost" onclick="setCfgAreaFilter('all')" style="padding:5px 8px;">✕</button>
+        <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);font-style:normal;">location</span>
+        <select id="cfg-location-filter" onchange="S.cfgLocationFilter=this.value;renderCfgPanel(S.cfgPanel)" style="width:130px;font-size:11px;padding:5px 8px;">
           <option value="all">All locations</option>
         </select>
+        <div style="width:1px;height:20px;background:var(--line);margin:0 2px;"></div>
+        <button class="btn sm" onclick="exportMD()" style="border-color:var(--accent3);color:var(--accent3);">↓ .md</button>
+        <button class="btn sm primary" onclick="exportXLSX()">↓ .xlsx</button>
       </div>
     </div>
     <!-- Mobile-only panel selector -->
