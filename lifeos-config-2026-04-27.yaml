@@ -1,0 +1,427 @@
+# lifeOS configuration export
+# generated: 2026-04-27
+
+areas:
+  - id: "work"
+    label: "Work & Career"
+    color: "#c84b2f"
+  - id: "finance"
+    label: "Financial & Org."
+    color: "#b8760a"
+  - id: "home"
+    label: "Environment & Home"
+    color: "#4a7c59"
+  - id: "health"
+    label: "Health & Self-care"
+    color: "#2f6bc8"
+  - id: "growth"
+    label: "Personal Growth"
+    color: "#7a4fa3"
+  - id: "social"
+    label: "Social & Relations"
+    color: "#c87a2f"
+  - id: "culture"
+    label: "Intellectual & Cultural"
+    color: "#2f8a8a"
+  - id: "leisure"
+    label: "Leisure & Emotional"
+    color: "#8a6040"
+
+locations:
+  - id: "mofgarqlm6ca"
+    label: "J2"
+    type: "home"
+  - id: "mofgaz0y2qgy"
+    label: "R8"
+    type: "home"
+  - id: "mofgbc6k8lmh"
+    label: "C11"
+    type: "home"
+  - id: "mofgbi7qtm03"
+    label: "Limoeiro"
+  - id: "mofgbmfnrdjw"
+    label: "Ventosa"
+  - id: "mofw9smtwc5d"
+    label: "Online"
+    type: "online"
+  - id: "mofwaffzhjjv"
+    label: "Lx"
+
+periods:
+  - id: "per-workday"
+    label: "Work Day"
+    availableHours: 16
+    dayTypes: "mon,tue,wed,thu,fri"
+  - id: "per-holiday"
+    label: "Holiday"
+    availableHours: 16
+    dayTypes: ""
+  - id: "per-vacation"
+    label: "Vacation"
+    availableHours: 16
+    dayTypes: ""
+  - id: "moe4k0e37q49"
+    label: "Xmas"
+    availableHours: 12
+    dayTypes: ""
+  - id: "per-weekend"
+    label: "Weekend"
+    availableHours: 13
+    dayTypes: "sat,sun"
+
+balance:
+  Work Day:
+    Work & Career: 50
+    Financial & Org.: 5
+    Environment & Home: 8
+    Health & Self-care: 9
+    Personal Growth: 5
+    Social & Relations: 5
+    Intellectual & Cultural: 6
+    Leisure & Emotional: 7
+  Holiday:
+    Work & Career: 10
+    Financial & Org.: 5
+    Environment & Home: 10
+    Health & Self-care: 7
+    Personal Growth: 22
+    Social & Relations: 0
+    Intellectual & Cultural: 0
+    Leisure & Emotional: 0
+  Vacation:
+    Work & Career: 3
+    Financial & Org.: 0
+    Environment & Home: 0
+    Health & Self-care: 5
+    Personal Growth: 0
+    Social & Relations: 0
+    Intellectual & Cultural: 0
+    Leisure & Emotional: 0
+  Xmas:
+    Work & Career: 0
+    Financial & Org.: 0
+    Environment & Home: 0
+    Health & Self-care: 0
+    Personal Growth: 0
+    Social & Relations: 0
+    Intellectual & Cultural: 0
+    Leisure & Emotional: 0
+  Weekend:
+    Work & Career: 10
+    Financial & Org.: 5
+    Environment & Home: 7
+    Health & Self-care: 8
+    Personal Growth: 15
+    Social & Relations: 15
+    Intellectual & Cultural: 20
+    Leisure & Emotional: 3
+
+activities:
+  - id: "a-weight"
+    label: "Weight lifting"
+    area: "Health & Self-care"
+    description: "Strength training"
+  - id: "a-code"
+    label: "Coding"
+    area: "Work & Career"
+    description: "Development & personal projects"
+  - id: "a-learn"
+    label: "Learning"
+    area: "Personal Growth"
+    description: "Courses, language, skills"
+  - id: "mocsovrx5vsq"
+    label: "Aerobic"
+    area: "mocsn9im44fk"
+    description: "Jogging, row, bike, ..."
+  - id: "mod276z399j4"
+    label: "Aerobic"
+    area: "Health & Self-care"
+    description: "jogging, row, bike, ..."
+  - id: "a-read"
+    label: "Reading"
+    area: "Intellectual & Cultural"
+    description: "Books, articles, long reads"
+  - id: "moe3a59lm0n4"
+    label: "Cinema"
+    area: "Intellectual & Cultural"
+  - id: "moe3afihpncp"
+    label: "Music"
+    area: "Intellectual & Cultural"
+  - id: "moe3ardb8ipb"
+    label: "Theater"
+    area: "Intellectual & Cultural"
+  - id: "moe3b9fs3lp4"
+    label: "Museum"
+    area: "Intellectual & Cultural"
+  - id: "modfoao2km9s"
+    label: "Preventive Addictions"
+    area: "Health & Self-care"
+  - id: "moegy2f4v8xe"
+    label: "Offensive Health Practices"
+    area: "Health & Self-care"
+    description: "Vitamin D, Body creams, Psoriasis, Water, Sleep"
+    goalsNum: 4
+    goalsPeriod: "day"
+  - id: "mofg4lx2d6l1"
+    label: "Training"
+    area: "Work & Career"
+  - id: "mofgajy1otld"
+    label: "R8 Maintenace"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "moe3ca3qw6lp"
+    label: "J2 Declutter"
+    area: "Environment & Home"
+    locations: ["J2"]
+  - id: "mofgdre62y49"
+    label: "R8 Declutter"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "mofgdyfkwkxh"
+    label: "C11 Declutter"
+    area: "Environment & Home"
+    locations: ["C11"]
+  - id: "moe274alsb9u"
+    label: "J2 Maintenance"
+    area: "Environment & Home"
+    locations: ["J2"]
+  - id: "moe26m5zzocl"
+    label: "J2 Improvements"
+    area: "Environment & Home"
+    description: "home improvements"
+    locations: ["J2"]
+  - id: "mofgifnnr9yx"
+    label: "R8 Improvements"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "mofgk2fq5w61"
+    label: "C11 Improvements"
+    area: "Environment & Home"
+    locations: ["C11"]
+  - id: "mofgisau39so"
+    label: "C11 Maintenance"
+    area: "Environment & Home"
+    locations: ["C11"]
+  - id: "mofhc2j4hr81"
+    label: "Memorabilia maintenace"
+    area: "Leisure & Emotional"
+  - id: "mofg667rhs7t"
+    label: "Sandbox management"
+    area: "Financial & Org."
+    goalsNum: 1
+    goalsPeriod: "week"
+    locations: ["Online"]
+  - id: "mofg6z4axtr2"
+    label: "Cars Maintenance"
+    area: "Financial & Org."
+    goalsNum: 4
+    goalsPeriod: "year"
+    locations: ["Lx"]
+  - id: "mofg6gyytxoy"
+    label: "IRS"
+    area: "Financial & Org."
+    goalsNum: 1
+    goalsPeriod: "year"
+    locations: ["Online"]
+  - id: "a-social"
+    label: "Catch Up"
+    area: "Social & Relations"
+    description: "Friends, family, relationships"
+    goalsNum: 1
+    goalsPeriod: "week"
+    locations: ["Lx"]
+
+routines:
+  - id: "r-run"
+    label: "Morning run"
+    frequency: 1 x "daily"
+    durationMin: 40
+  - id: "r-weight"
+    label: "Weight session"
+    area: "Health & Self-care"
+    activity: "Weight lifting"
+    frequency: 1 x "3x-week"
+    durationMin: 60
+  - id: "r-read"
+    label: "Reading block"
+    area: "Intellectual & Cultural"
+    activity: "Reading"
+    frequency: 1 x "daily"
+    durationMin: 30
+  - id: "r-duo"
+    label: "Duolingo"
+    area: "Personal Growth"
+    activity: "Learning"
+    frequency: 1 x "day"
+    durationMin: 10
+  - id: "mofga09ksdzx"
+    label: "Prius check up & IPO"
+    area: "Financial & Org."
+    activity: "Cars Maintenance"
+    frequency: 1 x "year"
+    durationMin: 120
+  - id: "mofh8q50snom"
+    label: "Avensis check up & IPO"
+    area: "Financial & Org."
+    activity: "Cars Maintenance"
+    frequency: 1 x "year"
+    durationMin: 120
+  - id: "mofh9s5cwc02"
+    label: "Rav4 check up & IPO"
+    frequency: 1 x "year"
+    durationMin: 120
+  - id: "mofhae90ln63"
+    label: "RAV4 check up & IPO"
+    area: "Financial & Org."
+    activity: "Cars Maintenance"
+    frequency: 1 x "year"
+    durationMin: 120
+  - id: "mofhbhj8bk95"
+    label: "Land Cruiser check up & IPO"
+    area: "Financial & Org."
+    activity: "Cars Maintenance"
+    frequency: 1 x "year"
+    durationMin: 120
+  - id: "mofwdp4lsm93"
+    label: "Gonçalo"
+    area: "Social & Relations"
+    activity: "Catch Up"
+    frequency: 1 x "quarter"
+    durationMin: 30
+  - id: "mofwsbm5rw8w"
+    label: "Pool Maintenance Payment"
+    area: "Environment & Home"
+    activity: "R8 Maintenace"
+    frequency: 1 x "month"
+    durationMin: 30
+    dayOfMonth: 5
+    location: "R8"
+  - id: "mofgg5u6wzwz"
+    label: "Cat Litter"
+    area: "Environment & Home"
+    activity: "J2 Maintenance"
+    frequency: 2 x "week"
+    durationMin: 20
+    location: "J2"
+  - id: "mofxmicj2d0b"
+    label: "Shawshank Diner"
+    area: "Social & Relations"
+    activity: "Catch Up"
+    frequency: 1 x "month"
+    durationMin: 30
+    dayOfMonth: 30
+    location: "Lx"
+    applicablePeriods: ["Work Day"]
+  - id: "mofxnxqkiq7v"
+    label: "Jnm"
+    area: "Social & Relations"
+    activity: "Catch Up"
+    frequency: 1 x "month"
+    durationMin: 30
+    dayOfMonth: 15
+    location: "Lx"
+    applicablePeriods: ["Work Day"]
+
+events:
+  - id: "mofxqd67w8hb"
+    label: "Leonor birthday"
+    area: "Leisure & Emotional"
+    frequency: "yearly"
+    durationMin: 60
+  - id: "mofxqw8453rf"
+    label: "João birthday"
+    frequency: "yearly"
+    durationMin: 60
+  - id: "mofxtfoaav7b"
+    label: "Maria birthday"
+    area: "Leisure & Emotional"
+    frequency: "yearly"
+    durationMin: 60
+
+projects:
+  - id: "moe42g0qzy8j"
+    label: "R8 Gray Painting of Stairs, Outside & Balconies"
+    status: "todo"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "moe43qedzdj9"
+    label: "Irrigation System Renewal"
+    status: "todo"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "moe25szpo35i"
+    label: "Home Cinema & HiFi"
+    status: "todo"
+    area: "Environment & Home"
+    locations: ["J2"]
+  - id: "moe3d7zwkf8z"
+    label: "Release Storage"
+    status: "todo"
+    area: "Environment & Home"
+    locations: ["J2"]
+  - id: "moe3fd29hs3s"
+    label: "Store on Storage"
+    status: "todo"
+    area: "Environment & Home"
+    description: "store items like water, cans, cleaners on storage"
+    locations: ["J2"]
+  - id: "mofwfrgqza5x"
+    label: "Canes Removal"
+    status: "todo"
+    area: "Environment & Home"
+    activity: "R8 Improvements"
+    locations: ["R8"]
+    tasks:
+      - label: "Clean up Old canes and sand"
+        status: "todo"
+  - id: "mod2s1h781lc"
+    label: "Lc Camper"
+    status: "todo"
+    area: "Leisure & Emotional"
+    locations: ["Lx"]
+  - id: "modfq7o0nu9w"
+    label: "Lc OffRoad"
+    status: "todo"
+    area: "Leisure & Emotional"
+    locations: ["Lx"]
+  - id: "moe40cpm380f"
+    label: "Fix/Improve Composter"
+    status: "todo"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "moe461eq9rwk"
+    label: "Shade in the Patio"
+    status: "todo"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "moe40gu7w81j"
+    label: "Fix/Improve Composter"
+    status: "todo"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "mofhcuo6klhx"
+    label: "Memorabilia App"
+    status: "todo"
+    area: "Leisure & Emotional"
+    activity: "Memorabilia maintenace"
+    description: "fotos/video maintenance, organization + events + timeline"
+    locations: ["Online"]
+    tasks:
+      - label: "Scan Fotos Cuba"
+        status: "todo"
+      - label: "Scan Fotos Lavre"
+        status: "todo"
+  - id: "moe46qsq789l"
+    label: "Shade in the Parking Lot"
+    status: "todo"
+    area: "Environment & Home"
+    locations: ["R8"]
+  - id: "moe44wr23sv3"
+    label: "Outdoor Electric Lighting"
+    status: "todo"
+    area: "Environment & Home"
+    activity: "R8 Improvements"
+    locations: ["R8"]
+    tasks:
+      - label: "Design Light & Electricity Spots"
+        status: "todo"

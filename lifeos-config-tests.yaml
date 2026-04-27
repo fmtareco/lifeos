@@ -1,0 +1,57 @@
+# lifeOS configuration export
+# generated: 2026-04-27
+
+areas:
+  - id: "work"
+    label: "Work & Career"
+    color: "#c84b2f"
+  - id: "finance"
+    label: "Financial & Org."
+    color: "#b8760a"
+  - id: "home"
+    label: "Environment & Home"
+    color: "#4a7c59"
+  - id: "health"
+    label: "Health & Self-care"
+    color: "#2f6bc8"
+  - id: "growth"
+    label: "Personal Growth"
+    color: "#7a4fa3"
+  - id: "social"
+    label: "Social & Relations"
+    color: "#c87a2f"
+  - id: "culture"
+    label: "Intellectual & Cultural"
+    color: "#2f8a8a"
+  - id: "leisure"
+    label: "Leisure & Emotional"
+    color: "#8a6040"
+
+locations:
+  - id: "mofgarqlm6ca"
+    label: "J2"
+    type: "home"
+  - id: "mofgaz0y2qgy"
+    label: "R8"
+    type: "home"
+  - id: "mofgbc6k8lmh"
+    label: "C11"
+    type: "home"
+
+
+routines:
+  - id: "cgd-dp"
+    label: "CGD Deposito Prazo"
+    frequency: 1 x "daily"
+    durationMin: 40
+  - id: "r-run"
+    label: "Morning run"
+    frequency: 1 x "daily"
+    durationMin: 40
+  - id: "r-weight"
+    label: "Weight session"
+    area: "Health & Self-care"
+    activity: "Weight lifting"
+    frequency: 1 x "3x-week"
+    durationMin: 60
+  

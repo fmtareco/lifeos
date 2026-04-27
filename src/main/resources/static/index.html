@@ -6,7 +6,7 @@
 <title>lifeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
-<script src="/api.js?v=9"></script>
+<script src="/api.js?v=10"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ════════════════════════════════════════════════════
@@ -694,6 +694,21 @@ input[type=range]{width:100%;accent-color:var(--accent);}
       </div>
       <div id="today-sidebar">
         <div class="score-widget">
+          <h4>Context</h4>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div>
+              <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px;">Current period</div>
+              <div id="today-period-label" style="font-family:var(--font-display);font-style:italic;font-size:14px;color:var(--ink2);">—</div>
+            </div>
+            <div>
+              <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px;">Location</div>
+              <select id="today-location-sel" onchange="S.todayLocation=this.value||null;renderAgendaList()" style="width:100%;font-size:12px;padding:5px 8px;">
+                <option value="">— anywhere —</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="score-widget">
           <h4>Day score</h4>
           <div style="display:flex;align-items:center;gap:14px;">
             <canvas id="score-donut" width="72" height="72"></canvas>
@@ -872,6 +887,8 @@ const S = {
   scoreView:'overview',
   scorePeriod:'day',
   kanbanDragId:null,
+  todayLocation:null,
+  todaySkipped:new Set(),
 };
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
@@ -982,37 +999,136 @@ function scoreLetter(s){
 //  AUTO-AGENDA SUGGESTIONS  (client-side)
 // ════════════════════════════════════════════════════════
 function generateAgendaSuggestions(){
-  const today=S.todayDate;
-  const dow=new Date(today+'T12:00:00').getDay();
-  const alreadyLogged=S.actions.filter(a=>a.date===today)
+  const today     = S.todayDate;
+  const dow       = new Date(today+'T12:00:00').getDay(); // 0=Sun
+  const todayDate = new Date(today+'T12:00:00').getDate();
+  const curPeriod = getPeriodForDate(today);
+  const curLoc    = S.todayLocation||null;
+
+  // IDs already logged or explicitly skipped today
+  const alreadyLogged = S.actions.filter(a=>a.date===today)
     .map(a=>a.routineId||a.eventId||a.taskId).filter(Boolean);
+  const skipped = S.todaySkipped||new Set();
+
+  // Helper: is routine due today based on freqNum/freqPeriod or legacy frequency
+  function routineDueToday(r){
+    // Check applicable periods — if set, only suggest in matching period
+    if(r.applicablePeriods){
+      const apIds=(typeof r.applicablePeriods==='string'?r.applicablePeriods.split(','):(r.applicablePeriods||[])).filter(Boolean);
+      if(apIds.length>0&&!apIds.includes(curPeriod.id)) return false;
+    }
+    // Check location — if set, only suggest when at that location
+    if(r.locationId&&curLoc&&r.locationId!==curLoc) return false;
+
+    // Triggered by event (skip frequency check)
+    if(r.eventId) return false;
+
+    const freq  = r.frequency||'';
+    const fNum  = r.freqNum||1;
+    const fPer  = r.freqPeriod||'day';
+
+    // New format: freqNum x freqPeriod
+    if(fPer==='day')     return true;      // every day
+    if(fPer==='week'){
+      // suggest on preferred day if set, else on Monday
+      const prefDay = typeof r.dayOfWeek==='number' ? r.dayOfWeek : 1;
+      return fNum===1 ? dow===prefDay : [1,3,5].slice(0,fNum).includes(dow);
+    }
+    if(fPer==='month'){
+      const prefDate = r.dayOfMonth||1;
+      return fNum===1 ? todayDate===prefDate : todayDate<=fNum*7&&dow===1;
+    }
+    // Legacy strings
+    if(freq==='daily')                              return true;
+    if(freq==='3x-week'&&[1,3,5].includes(dow))    return true;
+    if(freq==='2x-week'&&[2,4].includes(dow))       return true;
+    if(freq==='weekly'&&dow===1)                    return true;
+    return false;
+  }
+
+  // Helper: how long since this routine was last performed
+  function daysSinceRoutine(routineId){
+    const last=S.actions.filter(a=>a.routineId===routineId).sort((a,b)=>b.createdAt-a.createdAt)[0];
+    if(!last) return 999;
+    return Math.floor((Date.now()-last.createdAt)/86400000);
+  }
+
   const suggestions=[];
-  S.routines.forEach(r=>{
-    if(alreadyLogged.includes(r.id)) return;
-    let due=false;
-    if(r.frequency==='daily') due=true;
-    if(r.frequency==='3x-week'&&[1,3,5].includes(dow)) due=true;
-    if(r.frequency==='2x-week'&&[2,4].includes(dow)) due=true;
-    if(r.frequency==='weekly'&&dow===1) due=true;
-    if(due) suggestions.push({type:'routine',id:r.id,label:r.label,durationMin:r.durationMin,
-      areaId:activityOf(r.activityId)?.areaId,priority:2});
+
+  // 1. OVERDUE TASKS — highest priority
+  S.tasks.filter(t=>t.status!=='done').forEach(t=>{
+    if(alreadyLogged.includes(t.id)||skipped.has(t.id)) return;
+    if(t.activationDate&&daysUntil(t.activationDate)>0) return; // not yet active
+    if(t.dependsOnTaskId){ const dep=byId(S.tasks,t.dependsOnTaskId); if(dep&&dep.status!=='done') return; } // blocked
+    const du=daysUntil(t.deadline);
+    if(du!==null&&du<0){
+      const proj=byId(S.projects,t.projectId);
+      const act=activityOf(t.activityId||(proj?.activityId));
+      suggestions.push({type:'task',id:t.id,label:t.label,
+        durationMin:t.estimatedMin||60,areaId:t.areaId||proj?.areaId,
+        activityId:act?.id,activityLabel:act?.label,
+        priority:-1,daysLeft:du,tag:'overdue'});
+    }
   });
+
+  // 2. EVENTS today
   S.events.forEach(e=>{
-    if(alreadyLogged.includes(e.id)) return;
+    if(alreadyLogged.includes(e.id)||skipped.has(e.id)) return;
     let due=false;
     if(e.frequency==='weekly'&&typeof e.dayOfWeek==='number'&&e.dayOfWeek===dow) due=true;
     if(e.frequency==='once'&&e.date===today) due=true;
-    if(e.frequency==='monthly'&&e.dayOfMonth===new Date(today+'T12:00:00').getDate()) due=true;
-    if(due) suggestions.push({type:'event',id:e.id,label:e.label,durationMin:e.durationMin||60,
-      areaId:e.areaId,priority:1});
+    if(e.frequency==='monthly'&&e.dayOfMonth===todayDate) due=true;
+    if(e.frequency==='yearly'&&e.date&&e.date.slice(5)===today.slice(5)) due=true;
+    if(due) suggestions.push({type:'event',id:e.id,label:e.label,
+      durationMin:e.durationMin||60,areaId:e.areaId,priority:0,tag:'event'});
   });
+
+  // 3. TASKS due soon (0–7 days)
   S.tasks.filter(t=>t.status!=='done').forEach(t=>{
-    if(alreadyLogged.includes(t.id)) return;
+    if(alreadyLogged.includes(t.id)||skipped.has(t.id)) return;
+    if(t.activationDate&&daysUntil(t.activationDate)>0) return;
+    if(t.dependsOnTaskId){ const dep=byId(S.tasks,t.dependsOnTaskId); if(dep&&dep.status!=='done') return; }
     const du=daysUntil(t.deadline);
-    if(du!==null&&du<=7) suggestions.push({type:'task',id:t.id,label:t.label,
-      durationMin:t.estimatedMin||60,areaId:t.areaId,
-      priority:t.priority==='p1'?0:t.priority==='p2'?1:2,daysLeft:du});
+    if(du!==null&&du>=0&&du<=7){
+      const proj=byId(S.projects,t.projectId);
+      const act=activityOf(t.activityId||(proj?.activityId));
+      suggestions.push({type:'task',id:t.id,label:t.label,
+        durationMin:t.estimatedMin||60,areaId:t.areaId||proj?.areaId,
+        activityId:act?.id,activityLabel:act?.label,
+        priority:t.priority==='p1'?1:t.priority==='p2'?2:3,daysLeft:du,tag:'deadline'});
+    }
   });
+
+  // 4. ROUTINES due today
+  S.routines.forEach(r=>{
+    if(alreadyLogged.includes(r.id)||skipped.has(r.id)) return;
+    if(!routineDueToday(r)) return;
+    const act=activityOf(r.activityId);
+    const loc=r.locationId?byId(S.locations,r.locationId):null;
+    const daysSince=daysSinceRoutine(r.id);
+    // Boost priority if overdue (not done in longer than expected)
+    const expectedDays=r.freqNum&&r.freqPeriod==='week'?7/r.freqNum:r.freqPeriod==='month'?30/r.freqNum:1;
+    const overdueFactor=daysSince>expectedDays*1.5?0:0; // bump to front if skipped
+    suggestions.push({type:'routine',id:r.id,label:r.label,
+      durationMin:r.durationMin,areaId:act?.areaId,
+      activityId:act?.id,activityLabel:act?.label,
+      locationLabel:loc?.label,
+      priority:4+overdueFactor,tag:'routine',daysSince});
+  });
+
+  // 5. TASKS with no deadline (p1/p2, not done)
+  S.tasks.filter(t=>t.status!=='done'&&!t.deadline&&(t.priority==='p1'||t.priority==='p2')).forEach(t=>{
+    if(alreadyLogged.includes(t.id)||skipped.has(t.id)) return;
+    if(t.activationDate&&daysUntil(t.activationDate)>0) return;
+    if(t.dependsOnTaskId){ const dep=byId(S.tasks,t.dependsOnTaskId); if(dep&&dep.status!=='done') return; }
+    const proj=byId(S.projects,t.projectId);
+    const act=activityOf(t.activityId||(proj?.activityId));
+    suggestions.push({type:'task',id:t.id,label:t.label,
+      durationMin:t.estimatedMin||60,areaId:t.areaId||proj?.areaId,
+      activityId:act?.id,activityLabel:act?.label,
+      priority:t.priority==='p1'?5:6,tag:'important'});
+  });
+
   suggestions.sort((a,b)=>a.priority-b.priority);
   return suggestions;
 }
@@ -1091,7 +1207,7 @@ function renderAgendaList(){
           <div class="ai-meta" style="margin-top:4px;">${dur}${perf}</div>
         </div>
         <div class="ai-actions">
-          <button class="btn sm ghost" onclick="openLogModal(${JSON.stringify(a).replace(/"/g,'&quot;')})">✎</button>
+          <button class="btn sm ghost" onclick="openLogModalById('${a.id}')">✎</button>
           <button class="btn sm ghost" onclick="deleteAction('${a.id}')">✕</button>
         </div>
       </div>`;
@@ -1108,15 +1224,18 @@ function renderAgendaList(){
                   s.daysLeft<=3?`<span class="tag tag-p2">in ${s.daysLeft}d</span>`:
                   `<span class="badge">in ${s.daysLeft||''}d</span>`;
       const typeLabel=s.type==='routine'?'routine':s.type==='event'?'event':'task';
-      html+=`<div class="agenda-item" style="opacity:.75;border-style:dashed">
+      const actLabel=s.activityLabel?`<span style="font-size:10px;color:var(--ink3)"> · ${esc(s.activityLabel)}</span>`:'';
+      const locLabel=s.locationLabel?`<span class="badge" style="font-size:9px">@ ${esc(s.locationLabel)}</span>`:'';
+      const tagBadge={overdue:`<span class="tag tag-p1">overdue ${Math.abs(s.daysLeft)}d</span>`,deadline:s.daysLeft===0?`<span class="tag tag-p1">due today</span>`:s.daysLeft<=3?`<span class="tag tag-p2">in ${s.daysLeft}d</span>`:`<span class="badge">in ${s.daysLeft}d</span>`,event:`<span class="tag tag-p2">today</span>`,routine:s.daysSince>1?`<span class="badge">${s.daysSince}d ago</span>`:'',important:`<span class="tag tag-p3">priority</span>`}[s.tag]||'';
+      html+=`<div class="agenda-item" style="opacity:.8;border-style:dashed">
         <div class="ai-left-bar" style="background:${color}"></div>
         <div class="ai-time"><span class="badge">${typeLabel}</span><br><span style="font-size:10px;color:var(--ink3)">${fmtMin(s.durationMin)}</span></div>
         <div class="ai-body">
-          <div class="ai-name">${esc(s.label)}</div>
-          <div class="ai-meta" style="margin-top:4px;">${s.daysLeft!==undefined?badge:''}</div>
+          <div class="ai-name">${esc(s.label)}${actLabel}</div>
+          <div class="ai-meta" style="margin-top:4px;">${tagBadge}${locLabel}</div>
         </div>
         <div class="ai-actions">
-          <button class="btn sm primary" onclick="quickLog('${s.type}','${s.id}','${esc(s.label)}',${s.durationMin||0},'${s.areaId||''}')">log</button>
+          <button class="btn sm primary" onclick="openLogModal(null,'${s.type}','${s.id}')">log</button>
           <button class="btn sm ghost" onclick="skipSuggestion('${s.type}','${s.id}')">skip</button>
         </div>
       </div>`;
@@ -1137,6 +1256,19 @@ function resolveActionLabel(a){
 function renderTodaySidebar(){
   const td=S.todayDate;
   const result=computeDayScore(td);
+
+  // period label
+  const curPeriod=getPeriodForDate(td);
+  const periodEl=document.getElementById('today-period-label');
+  if(periodEl) periodEl.textContent=curPeriod.label||'—';
+
+  // location selector
+  const locSel=document.getElementById('today-location-sel');
+  if(locSel){
+    const cur=S.todayLocation||'';
+    locSel.innerHTML='<option value="">— anywhere —</option>'+
+      S.locations.map(l=>`<option value="${l.id}" ${cur===l.id?'selected':''}>${esc(l.label)}</option>`).join('');
+  }
 
   // big score
   const sv=result.score;
@@ -1224,7 +1356,7 @@ async function quickLog(type,id,label,durationMin,areaId){
     durationMin:durationMin||0,
     performance:null,
     notes:'',
-    resources:[],
+    resources:JSON.stringify([]),
     loggedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
     createdAt:Date.now(),
   };
@@ -1242,9 +1374,8 @@ async function deleteAction(id){
 }
 
 function skipSuggestion(type,id){
-  // Just remove from suggestions by adding a "skip" marker in actions for today
-  // lightweight: just re-render, suggestion won't matter
-  showToast('Skipped (not logged)');
+  S.todaySkipped.add(id);
+  showToast('Skipped');
   renderAgendaList();
 }
 
@@ -2307,6 +2438,11 @@ function routineOptions(selected){ return S.routines.map(r=>`<option value="${r.
 function eventOptions(selected){ return S.events.map(e=>`<option value="${e.id}" ${selected===e.id?'selected':''}>${esc(e.label)}</option>`).join(''); }
 
 // ── LOG ACTION MODAL ──
+function openLogModalById(id){
+  const a=byId(S.actions,id);
+  if(a) openLogModal(a);
+  else showToast('Action not found');
+}
 function openLogModal(existingAction, defaultType, defaultId){
   const a=existingAction||{};
   const isEdit=!!a.id;
