@@ -6,7 +6,7 @@
 <title>lifeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
-<script src="/api.js?v=8"></script>
+<script src="/api.js?v=9"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ════════════════════════════════════════════════════
@@ -2084,7 +2084,8 @@ function renderCfgRoutines(){
       const area=byId(S.areas,ac?.areaId);
       const ev=byId(S.events,r.eventId);
       const freqLabel=r.freqNum&&r.freqPeriod?`${r.freqNum}× / ${r.freqPeriod}`:esc(r.frequency||'');
-      const periodsLabel=r.applicablePeriods&&r.applicablePeriods.length?r.applicablePeriods.join(', '):'all periods';
+      const apArr2=(typeof r.applicablePeriods==='string'?r.applicablePeriods.split(','):(r.applicablePeriods||[])).filter(Boolean);
+      const periodsLabel=apArr2.length?apArr2.map(id=>byId(S.periods,id)?.label||id).join(', '):'all periods';
       return `<div class="entity-row">
         <div class="entity-row-main">
           <div class="entity-row-name">${esc(r.label)}</div>
@@ -3248,15 +3249,132 @@ function triggerYAMLImport(){
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">cancel</button>
-      <button class="btn primary" onclick="confirmYAMLImport(${JSON.stringify(text).replace(/</g,'&lt;')})">import</button>
+      <button class="btn primary" id="yaml-import-confirm-btn">import</button>
     </div>`);
+  // Store text on button to avoid huge onclick attribute
+  setTimeout(()=>{
+    const btn=document.getElementById('yaml-import-confirm-btn');
+    if(btn){ btn._yamlText=text; btn.onclick=()=>confirmYAMLImport(btn._yamlText); }
+  },10);
   };
   inp.click();
 }
 
 async function confirmYAMLImport(yamlText){
   closeModal();
-  showToast('Import from YAML is not yet supported in-browser. Please use the exported YAML as a reference to manually recreate items, or restore from a database backup.');
+  if(!yamlText||!yamlText.trim()){ showToast('Empty file'); return; }
+
+  showToast('Importing…', 30000);
+  let imported=0, errors=0;
+
+  try {
+    // Simple line-by-line YAML parser for our known structure
+    // Supports the exact format we export
+    const lines = yamlText.replace(/\r/g,'').split('\n');
+    let currentSection = '';
+    let currentItem = null;
+    let currentProject = null;
+    let currentTask = null;
+    const areaMap = {};   // label -> id
+    const actMap  = {};   // label -> id
+    const locMap  = {};   // label -> id
+    const perMap  = {};   // label -> id
+    const projMap = {};   // label -> id
+    const taskMap = {};   // label -> id
+
+    // Build lookup maps from existing data
+    S.areas.forEach(a=>{ areaMap[a.label]=a.id; });
+    S.activities.forEach(a=>{ actMap[a.label]=a.id; });
+    S.locations.forEach(l=>{ locMap[l.label]=l.id; });
+    S.periods.forEach(p=>{ perMap[p.label]=p.id; });
+    S.projects.forEach(p=>{ projMap[p.label]=p.id; });
+    S.tasks.forEach(t=>{ taskMap[t.label]=t.id; });
+
+    function unquote(s){ return s?s.replace(/^["']|["']$/g,'').replace(/\\"/g,'"'):''; }
+    function parseVal(s){ const v=s.trim(); if(v==='null') return null; if(v==='true') return true; if(v==='false') return false; const n=Number(v); if(!isNaN(n)&&v!=='') return n; return unquote(v); }
+
+    async function saveItem(section, item){
+      if(!item||!item.id) return;
+      try {
+        if(section==='areas'){ await API.saveArea(item); if(!byId(S.areas,item.id)) S.areas.push(item); else Object.assign(byId(S.areas,item.id),item); areaMap[item.label]=item.id; }
+        else if(section==='locations'){ await API.saveLocation(item); if(!byId(S.locations,item.id)) S.locations.push(item); else Object.assign(byId(S.locations,item.id),item); locMap[item.label]=item.id; }
+        else if(section==='periods'){ await API.savePeriod(item); if(!byId(S.periods,item.id)) S.periods.push(item); else Object.assign(byId(S.periods,item.id),item); perMap[item.label]=item.id; }
+        else if(section==='activities'){ await API.saveActivity(item); if(!byId(S.activities,item.id)) S.activities.push(item); else Object.assign(byId(S.activities,item.id),item); actMap[item.label]=item.id; }
+        else if(section==='routines'){ await API.saveRoutine(item); if(!byId(S.routines,item.id)) S.routines.push(item); else Object.assign(byId(S.routines,item.id),item); }
+        else if(section==='events'){ await API.saveEvent(item); if(!byId(S.events,item.id)) S.events.push(item); else Object.assign(byId(S.events,item.id),item); }
+        else if(section==='projects'){ await API.saveProject(item); if(!byId(S.projects,item.id)) S.projects.push(item); else Object.assign(byId(S.projects,item.id),item); projMap[item.label]=item.id; }
+        else if(section==='tasks'){ await API.saveTask(item); if(!byId(S.tasks,item.id)) S.tasks.push(item); else Object.assign(byId(S.tasks,item.id),item); taskMap[item.label]=item.id; }
+        imported++;
+      } catch(e){ errors++; console.warn('Import error for',item,e.message); }
+    }
+
+    for(let i=0; i<lines.length; i++){
+      const raw = lines[i];
+      const line = raw.trimEnd();
+      if(!line||line.startsWith('#')) continue;
+
+      // Top-level section
+      if(/^[a-z]/.test(line)&&line.endsWith(':')){
+        if(currentItem) await saveItem(currentSection, currentItem);
+        if(currentTask) await saveItem('tasks', currentTask);
+        currentItem=null; currentTask=null; currentProject=null;
+        currentSection=line.slice(0,-1);
+        continue;
+      }
+
+      const indent2 = raw.match(/^( *)/)[1].length;
+
+      // New top-level list item (2 spaces indent, starts with -)
+      if(indent2===2&&line.trimStart().startsWith('- ')){
+        if(currentItem) await saveItem(currentSection, currentItem);
+        if(currentTask) await saveItem('tasks', currentTask);
+        currentTask=null;
+        const kv=line.trimStart().slice(2);
+        currentItem={id:uid()};
+        if(kv.includes(': ')){ const [k,...vs]=kv.split(': '); currentItem[k.trim()]=parseVal(vs.join(': ')); }
+        continue;
+      }
+
+      // Nested task item (6 spaces)
+      if(indent2===6&&line.trimStart().startsWith('- ')&&currentSection==='projects'){
+        if(currentTask) await saveItem('tasks', currentTask);
+        currentTask={id:uid(), projectId:currentItem?.id, areaId:currentItem?.areaId, status:'todo'};
+        const kv=line.trimStart().slice(2);
+        if(kv.includes(': ')){ const [k,...vs]=kv.split(': '); currentTask[k.trim()]=parseVal(vs.join(': ')); }
+        continue;
+      }
+
+      // Key: value lines
+      const kvMatch = line.match(/^( +)([a-zA-Z_]+): (.*)$/);
+      if(kvMatch){
+        const [,sp,key,val]=kvMatch;
+        const depth=sp.length;
+        const parsed=parseVal(val);
+
+        if(depth<=4&&currentItem&&!currentTask){
+          // Resolve label references to IDs
+          if(key==='area'&&typeof parsed==='string') currentItem.areaId=areaMap[parsed]||parsed;
+          else if(key==='activity'&&typeof parsed==='string') currentItem.activityId=actMap[parsed]||parsed;
+          else if(key==='location'&&typeof parsed==='string') currentItem.locationId=locMap[parsed]||parsed;
+          else if(key==='dependsOn'&&currentSection==='projects') currentItem.dependsOnProjectId=projMap[parsed]||null;
+          else currentItem[key]=parsed;
+        } else if(depth>=6&&currentTask){
+          if(key==='dependsOn') currentTask.dependsOnTaskId=taskMap[parsed]||null;
+          else currentTask[key]=parsed;
+        }
+      }
+    }
+    // Save last items
+    if(currentTask) await saveItem('tasks', currentTask);
+    if(currentItem) await saveItem(currentSection, currentItem);
+
+    showToast(`Import complete: ${imported} items saved${errors>0?' ('+errors+' errors, see console)':''}`);
+    await loadAll();
+    renderPage(S.currentPage);
+  } catch(e){
+    showToast('Import failed: '+e.message);
+    console.error('YAML import error:', e);
+  }
 }
 </script>
 
