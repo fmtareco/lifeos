@@ -6,7 +6,7 @@
 <title>lifeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
-<script src="/api.js?v=11"></script>
+<script src="/api.js?v=13"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ════════════════════════════════════════════════════
@@ -1170,11 +1170,11 @@ function renderPage(name){
 //  TODAY PAGE
 // ════════════════════════════════════════════════════════
 function renderToday(){
+  S.todayDate = todayISO(); // always use current date
   const td = S.todayDate;
   const dn = new Date(td+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('today-heading').textContent='Today';
   document.getElementById('today-date-sub').textContent=dn;
-
   renderAgendaList();
   renderTodaySidebar();
 }
@@ -1216,7 +1216,10 @@ function renderAgendaList(){
 
   // Suggestions
   if(suggestions.length>0){
-    html+=`<div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:16px 0 8px;">Suggested for today</div>`;
+    html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px;">
+      <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);">Suggested for today</span>
+      <button class="btn sm ghost" onclick="openLogModal(null)" style="font-size:10px;padding:3px 8px;">+ add free action</button>
+    </div>`;
     suggestions.forEach(s=>{
       const color=areaColor(s.areaId);
       const badge=s.daysLeft<0?`<span class="tag tag-p1">overdue ${Math.abs(s.daysLeft)}d</span>`:
@@ -1242,7 +1245,11 @@ function renderAgendaList(){
     });
   }
 
-  if(!html) html='<div class="empty">Nothing yet today. Click "auto-agenda" to generate suggestions, or "+ log action" to record something.</div>';
+  if(!html) html=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);">Suggested for today</span>
+      <button class="btn sm ghost" onclick="openLogModal(null)" style="font-size:10px;padding:3px 8px;">+ add free action</button>
+    </div>
+    <div class="empty">No suggestions yet. Configure routines and tasks, or click "↺ auto-agenda".</div>`;
   el.innerHTML=html;
 }
 
@@ -1342,9 +1349,12 @@ function drawDonut(canvasId,val){
 }
 
 async function generateAgenda(){
-  // just refresh the display with suggestions
+  S.todaySkipped = new Set();
+  S.todayDate = todayISO();
+  await loadAll();
   renderAgendaList();
-  showToast('Agenda refreshed with today\'s suggestions');
+  renderTodaySidebar();
+  showToast('Agenda refreshed');
 }
 
 async function quickLog(type,id,label,durationMin,areaId){
@@ -2417,7 +2427,24 @@ async function updateBalanceWeight(periodId,areaId,rawVal,availHours,inputType){
 // ════════════════════════════════════════════════════════
 function openModal(html){ document.getElementById('modal-box').innerHTML=html; document.getElementById('modal-overlay').classList.add('open'); }
 function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); }
-function closeModalOnOverlay(e){ if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+// Track where mousedown started so we don't close modal on text-selection drags
+let _modalMouseDownOnOverlay = false;
+document.addEventListener('DOMContentLoaded',()=>{
+  const overlay=document.getElementById('modal-overlay');
+  if(overlay){
+    overlay.addEventListener('mousedown', e=>{
+      _modalMouseDownOnOverlay = (e.target === overlay);
+    });
+  }
+});
+function closeModalOnOverlay(e){
+  // Only close if BOTH mousedown AND click landed on the overlay background
+  // This prevents closing when user selects text inside the modal
+  if(_modalMouseDownOnOverlay && e.target===document.getElementById('modal-overlay')){
+    closeModal();
+  }
+  _modalMouseDownOnOverlay = false;
+}
 
 // area selects helper
 function areaOptions(selected){ return S.areas.map(a=>`<option value="${a.id}" ${selected===a.id?'selected':''}>${esc(a.label)}</option>`).join(''); }
@@ -2438,6 +2465,17 @@ function routineOptions(selected){ return S.routines.map(r=>`<option value="${r.
 function eventOptions(selected){ return S.events.map(e=>`<option value="${e.id}" ${selected===e.id?'selected':''}>${esc(e.label)}</option>`).join(''); }
 
 // ── LOG ACTION MODAL ──
+function editTaskFromProject(btn){
+  const id=btn.dataset.taskEdit;
+  closeModal();
+  setTimeout(()=>openTaskModal(id),50);
+}
+function addTaskFromProject(btn){
+  const projId=btn.dataset.projId;
+  closeModal();
+  S.cfgProjectFilter=projId;
+  setTimeout(()=>openTaskModal(null),50);
+}
 function openLogModalById(id){
   const a=byId(S.actions,id);
   if(a) openLogModal(a);
@@ -2943,10 +2981,10 @@ function openProjectModal(id){
           <span style="flex:1">${esc(t.label)}</span>
           ${t.priority?`<span class="tag tag-${t.priority}" style="font-size:8px">${{p1:'urgent',p2:'important',p3:'someday'}[t.priority]}</span>`:''}
           <span class="badge">${t.status||'todo'}</span>
-          <button class="btn sm ghost" style="padding:2px 6px;font-size:10px" onclick="closeModal();openTaskModal('${t.id}')">✎</button>
+          <button class="btn sm ghost" style="padding:2px 6px;font-size:10px" data-task-edit="${t.id}" onclick="editTaskFromProject(this)">✎</button>
         </div>`).join('')||'<span style="font-size:11px;color:var(--ink3);font-style:italic">none</span>'}
     </div>
-    <button class="btn sm" style="margin-top:8px" onclick="closeModal();S.cfgProjectFilter='${p.id}';openTaskModal(null)">+ add task to this project</button>
+    <button class="btn sm primary" style="margin-top:8px" data-proj-id="${p.id}" onclick="addTaskFromProject(this)">+ add task to this project</button>
   </div>`:''}
   <div class="modal-actions">
     ${p?`<button class="btn danger" onclick="deleteEntity('projects','${p.id}')">delete</button>`:''}
