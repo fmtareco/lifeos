@@ -6,7 +6,7 @@
 <title>lifeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
-<script src="/api.js?v=10"></script>
+<script src="/api.js?v=11"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ════════════════════════════════════════════════════
@@ -1361,15 +1361,15 @@ async function quickLog(type,id,label,durationMin,areaId){
     createdAt:Date.now(),
   };
   await API.saveAction(action);
-  S.actions.push(action);
   if(type==='task'){ const t=byId(S.tasks,id); if(t){ t.status='done'; await API.saveTask(t); } }
+  await loadAll();
   renderToday();
-  showToast(`Logged: ${label}`);
+  showToast('Logged: '+label);
 }
 
 async function deleteAction(id){
   await API.deleteAction(id);
-  S.actions=S.actions.filter(a=>a.id!==id);
+  await loadAll();
   renderToday();
 }
 
@@ -2464,20 +2464,24 @@ function openLogModal(existingAction, defaultType, defaultId){
       <select id="m-ref" onchange="onLogRefChange()"></select></div>
   </div>
   <div class="grid2" id="m-filter-row">
-    <div class="field"><label>Filter by area</label>
+    <div class="field"><label>Filter area</label>
       <select id="m-filter-area" onchange="onLogTypeChange()">
         <option value="">All areas</option>${areaOptions('')}
       </select></div>
-    <div class="field"><label>Filter by activity</label>
+    <div class="field"><label>Filter activity</label>
       <select id="m-filter-activity" onchange="onLogTypeChange()">
         <option value="">All activities</option>
       </select></div>
   </div>
+  <div id="m-task-context" style="display:none;background:var(--bg3);border:1px solid var(--line);padding:8px 12px;border-radius:var(--r);font-size:11px;color:var(--ink2);margin-bottom:8px;"></div>
   <div class="grid2">
-    <div class="field"><label>Area (log override)</label>
-      <select id="m-area"><option value="">auto</option>${areaOptions(a.areaId||'')}</select></div>
     <div class="field"><label>Date</label>
       <input type="date" id="m-date" value="${a.date||S.todayDate}"></div>
+    <div class="field" id="m-done-field" style="display:none;align-items:center;gap:8px;padding-top:20px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;">
+        <input type="checkbox" id="m-mark-done"> Mark task as <strong>Done</strong>
+      </label>
+    </div>
   </div>
   <div class="grid2">
     <div class="field"><label>Duration (minutes)</label>
@@ -2488,7 +2492,7 @@ function openLogModal(existingAction, defaultType, defaultId){
   <div class="field"><label>Notes / context</label>
     <textarea id="m-notes" rows="3">${esc(a.notes||'')}</textarea></div>
   <div class="field"><label>Resources (URL — description, one per line)</label>
-    <textarea id="m-resources" rows="2">${(a.resources||[]).map(r=>r.url+(r.desc?' — '+r.desc:'')).join('\n')}</textarea></div>
+    <textarea id="m-resources" rows="2">${(()=>{try{const res=typeof a.resources==='string'?JSON.parse(a.resources||'[]'):(a.resources||[]);return res.map(r=>r.url+(r.desc?' \u2014 '+r.desc:'')).join('\n');}catch(e){return '';}})()}</textarea></div>
   <div class="modal-actions">
     ${isEdit?`<button class="btn danger" onclick="deleteAction('${a.id}')">delete</button>`:''}
     <button class="btn" onclick="closeModal()">cancel</button>
@@ -2551,12 +2555,52 @@ function onLogRefChange(){
   const t=document.getElementById('m-type')?.value;
   const refSel=document.getElementById('m-ref');
   const refId=refSel?.value;
-  if(!refId||t==='free') return;
+  const ctxEl=document.getElementById('m-task-context');
+  const doneField=document.getElementById('m-done-field');
+
+  if(!refId||t==='free'){
+    if(ctxEl) ctxEl.style.display='none';
+    if(doneField) doneField.style.display='none';
+    return;
+  }
+
   let name='';
-  if(t==='routine'){ const r=byId(S.routines,refId); name=r?.label||''; }
-  else if(t==='task'){ const tk=byId(S.tasks,refId); name=tk?.label||''; }
-  else if(t==='event'){ const ev=byId(S.events,refId); name=ev?.label||''; }
-  // Auto-fill label only if it's empty or matches a previous auto-fill
+  let ctxHtml='';
+
+  if(t==='routine'){
+    const r=byId(S.routines,refId);
+    name=r?.label||'';
+    const ac=byId(S.activities,r?.activityId);
+    const area=byId(S.areas,ac?.areaId);
+    const loc=r?.locationId?byId(S.locations,r.locationId):null;
+    if(ac||area) ctxHtml=`<span style="color:${area?.color||'var(--ink3)'}">${esc(area?.label||'')}</span>${ac?' · '+esc(ac.label):''}${loc?' · @ '+esc(loc.label):''}`;
+    if(doneField) doneField.style.display='none';
+  } else if(t==='task'){
+    const tk=byId(S.tasks,refId);
+    name=tk?.label||'';
+    const proj=byId(S.projects,tk?.projectId);
+    const area=byId(S.areas,tk?.areaId||proj?.areaId);
+    const act=byId(S.activities,tk?.activityId||proj?.activityId);
+    ctxHtml=`<span style="color:${area?.color||'var(--ink3)'}">${esc(area?.label||'')}</span>${act?' · '+esc(act.label):''}${proj?' · 📁 '+esc(proj.label):''}`;
+    if(tk?.estimatedMin) ctxHtml+=` · ~${tk.estimatedMin} min`;
+    if(tk?.deadline) ctxHtml+=` · due ${tk.deadline}`;
+    // Show "mark done" checkbox
+    if(doneField){
+      doneField.style.display='flex';
+      const cb=document.getElementById('m-mark-done');
+      if(cb) cb.checked=tk?.status==='done';
+    }
+  } else if(t==='event'){
+    const ev=byId(S.events,refId);
+    name=ev?.label||'';
+    const area=byId(S.areas,ev?.areaId);
+    ctxHtml=`<span style="color:${area?.color||'var(--ink3)'}">${esc(area?.label||'')}</span>`;
+    if(doneField) doneField.style.display='none';
+  }
+
+  if(ctxEl){ ctxEl.innerHTML=ctxHtml; ctxEl.style.display=ctxHtml?'':'none'; }
+
+  // Auto-fill label
   const labelEl=document.getElementById('m-label');
   if(labelEl&&(!labelEl.value||labelEl.dataset.autofilled==='true')){
     labelEl.value=name;
@@ -2572,17 +2616,26 @@ async function saveLogAction(existingId){
   const perf=parseFloat(document.getElementById('m-perf').value)||null;
   const notes=document.getElementById('m-notes').value.trim();
   const date=document.getElementById('m-date').value||S.todayDate;
-  const areaId=document.getElementById('m-area').value||null;
+  const areaId=null; // resolved from routine/task below
   const resRaw=document.getElementById('m-resources').value.trim();
   const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[]; 
 
+  // Resolve areaId from selected routine/task if not overridden
+  let resolvedAreaId = areaId;
+  if(!resolvedAreaId){
+    if(type==='routine'){ const r=byId(S.routines,ref); const ac=byId(S.activities,r?.activityId); resolvedAreaId=ac?.areaId||null; }
+    else if(type==='task'){ const t=byId(S.tasks,ref); const proj=byId(S.projects,t?.projectId); resolvedAreaId=t?.areaId||proj?.areaId||null; }
+    else if(type==='event'){ const ev=byId(S.events,ref); resolvedAreaId=ev?.areaId||null; }
+  }
   const action={
     id:existingId||uid(),
     label, date,
     routineId:type==='routine'?ref:null,
     taskId:   type==='task'   ?ref:null,
     eventId:  type==='event'  ?ref:null,
-    areaId, durationMin:dur, performance:perf, notes, resources,
+    areaId:resolvedAreaId,
+    durationMin:dur, performance:perf, notes,
+    resources:JSON.stringify(resources),
     loggedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
     createdAt:existingId?S.actions.find(a=>a.id===existingId)?.createdAt||Date.now():Date.now(),
   };
@@ -2591,10 +2644,16 @@ async function saveLogAction(existingId){
   if(existingId) S.actions=S.actions.filter(a=>a.id!==existingId);
   S.actions.push(action);
 
-  // auto-complete task
-  if(type==='task'&&ref){ const t=byId(S.tasks,ref); if(t&&t.status!=='done'){ t.status='done'; await API.saveTask(t); } }
+  // mark task done if checkbox checked
+  if(type==='task'&&ref){
+    const markDone=document.getElementById('m-mark-done')?.checked;
+    const t=byId(S.tasks,ref);
+    if(t&&markDone&&t.status!=='done'){ t.status='done'; await API.saveTask(t); }
+  }
 
   closeModal();
+  // Reload all data then re-render so agenda reflects new action
+  await loadAll();
   renderPage(S.currentPage);
   showToast('Action saved');
 }
