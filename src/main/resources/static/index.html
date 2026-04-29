@@ -6,7 +6,7 @@
 <title>lifeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
-<script src="/api.js?v=13"></script>
+<script src="/api.js?v=14"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ════════════════════════════════════════════════════
@@ -889,6 +889,7 @@ const S = {
   kanbanDragId:null,
   todayLocation:null,
   todaySkipped:new Set(),
+  todayPlanned:[],
 };
 
 function todayISO(){ return new Date().toISOString().slice(0,10); }
@@ -1182,7 +1183,19 @@ function renderToday(){
 function renderAgendaList(){
   const td=S.todayDate;
   const actions=S.actions.filter(a=>a.date===td).sort((a,b)=>a.createdAt-b.createdAt);
-  const suggestions=generateAgendaSuggestions();
+  // Merge generated suggestions with manually planned items
+  // Planned items that are already logged get removed
+  const alreadyLoggedIds=S.actions.filter(a=>a.date===td)
+    .map(a=>a.routineId||a.taskId||a.eventId).filter(Boolean);
+  S.todayPlanned=S.todayPlanned.filter(p=>{
+    const ref=p.routineId||p.taskId;
+    return !ref||!alreadyLoggedIds.includes(ref);
+  });
+  const generated=generateAgendaSuggestions();
+  // Remove generated items that are already in planned
+  const plannedRefs=new Set(S.todayPlanned.map(p=>p.routineId||p.taskId).filter(Boolean));
+  const filteredGen=generated.filter(s=>!(s.routineId&&plannedRefs.has(s.routineId))&&!(s.taskId&&plannedRefs.has(s.taskId)));
+  const suggestions=[...S.todayPlanned, ...filteredGen];
   const el=document.getElementById('agenda-list');
 
   let html='';
@@ -1218,7 +1231,7 @@ function renderAgendaList(){
   if(suggestions.length>0){
     html+=`<div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px;">
       <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);">Suggested for today</span>
-      <button class="btn sm ghost" onclick="openLogModal(null)" style="font-size:10px;padding:3px 8px;">+ add free action</button>
+      <button class="btn sm ghost" onclick="openPlanModal()" style="font-size:10px;padding:3px 8px;">+ plan action</button>
     </div>`;
     suggestions.forEach(s=>{
       const color=areaColor(s.areaId);
@@ -1239,7 +1252,10 @@ function renderAgendaList(){
         </div>
         <div class="ai-actions">
           <button class="btn sm primary" onclick="openLogModal(null,'${s.type}','${s.id}')">log</button>
-          <button class="btn sm ghost" onclick="skipSuggestion('${s.type}','${s.id}')">skip</button>
+          ${s.tag==='planned'
+            ?`<button class="btn sm ghost" onclick="removePlan('${s.id}')">✕</button>`
+            :`<button class="btn sm ghost" onclick="skipSuggestion('${s.type}','${s.id}')">skip</button>`
+          }
         </div>
       </div>`;
     });
@@ -1247,7 +1263,7 @@ function renderAgendaList(){
 
   if(!html) html=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);">Suggested for today</span>
-      <button class="btn sm ghost" onclick="openLogModal(null)" style="font-size:10px;padding:3px 8px;">+ add free action</button>
+      <button class="btn sm ghost" onclick="openPlanModal()" style="font-size:10px;padding:3px 8px;">+ plan action</button>
     </div>
     <div class="empty">No suggestions yet. Configure routines and tasks, or click "↺ auto-agenda".</div>`;
   el.innerHTML=html;
@@ -1383,6 +1399,10 @@ async function deleteAction(id){
   renderToday();
 }
 
+function removePlan(id){
+  S.todayPlanned=S.todayPlanned.filter(p=>p.id!==id);
+  renderAgendaList();
+}
 function skipSuggestion(type,id){
   S.todaySkipped.add(id);
   showToast('Skipped');
@@ -1981,7 +2001,19 @@ function exportXLSX(){
   // ── Sheet 8: Today's Agenda ───────────────────────────
   {
     const rows=[['Type','Label','Area','Duration (min)','Deadline','Days Left']];
-    const suggestions=generateAgendaSuggestions();
+    // Merge generated suggestions with manually planned items
+  // Planned items that are already logged get removed
+  const alreadyLoggedIds=S.actions.filter(a=>a.date===td)
+    .map(a=>a.routineId||a.taskId||a.eventId).filter(Boolean);
+  S.todayPlanned=S.todayPlanned.filter(p=>{
+    const ref=p.routineId||p.taskId;
+    return !ref||!alreadyLoggedIds.includes(ref);
+  });
+  const generated=generateAgendaSuggestions();
+  // Remove generated items that are already in planned
+  const plannedRefs=new Set(S.todayPlanned.map(p=>p.routineId||p.taskId).filter(Boolean));
+  const filteredGen=generated.filter(s=>!(s.routineId&&plannedRefs.has(s.routineId))&&!(s.taskId&&plannedRefs.has(s.taskId)));
+  const suggestions=[...S.todayPlanned, ...filteredGen];
     suggestions.forEach(s=>{
       const area=areaOf(s.areaId);
       rows.push([s.type,s.label,area?.label||'',s.durationMin||'',
@@ -2476,6 +2508,100 @@ function addTaskFromProject(btn){
   S.cfgProjectFilter=projId;
   setTimeout(()=>openTaskModal(null),50);
 }
+// ── PLAN ACTION MODAL (add to agenda without logging) ──
+function openPlanModal(){
+  openModal(`<div class="modal-title">Add to agenda<button onclick="closeModal()">✕</button></div>
+  <div style="font-size:11px;color:var(--ink3);margin-bottom:12px;">Add an action to today's suggested agenda. You can log it later.</div>
+  <div class="field"><label>Label</label>
+    <input type="text" id="mp2-label" placeholder="what do you plan to do?"></div>
+  <div class="grid2">
+    <div class="field"><label>Area</label>
+      <select id="mp2-area" onchange="onPlanAreaChange()">
+        <option value="">— any —</option>${areaOptions('')}
+      </select></div>
+    <div class="field"><label>Activity</label>
+      <select id="mp2-activity">
+        <option value="">— any —</option>
+      </select></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Type</label>
+      <select id="mp2-type" onchange="onPlanTypeChange()">
+        <option value="free">Free action</option>
+        <option value="routine">Routine</option>
+        <option value="task">Task</option>
+      </select></div>
+    <div class="field" id="mp2-ref-field" style="display:none"><label>Reference</label>
+      <select id="mp2-ref"></select></div>
+  </div>
+  <div class="field"><label>Est. duration (min)</label>
+    <input type="number" id="mp2-dur" min="0" placeholder="0" style="width:100px"></div>
+  <div class="modal-actions">
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="savePlan()">add to agenda</button>
+  </div>`);
+}
+function onPlanAreaChange(){
+  const areaId=document.getElementById('mp2-area').value||null;
+  const actSel=document.getElementById('mp2-activity');
+  const cur=actSel.value;
+  actSel.innerHTML='<option value="">— any —</option>'+activityOptions(cur,areaId);
+  onPlanTypeChange();
+}
+function onPlanTypeChange(){
+  const t=document.getElementById('mp2-type').value;
+  const areaId=document.getElementById('mp2-area').value||null;
+  const actId=document.getElementById('mp2-activity').value||null;
+  const ref=document.getElementById('mp2-ref');
+  const field=document.getElementById('mp2-ref-field');
+  if(t==='free'){ field.style.display='none'; return; }
+  field.style.display='';
+  if(t==='routine'){
+    let items=S.routines;
+    if(areaId) items=items.filter(r=>{ const ac=byId(S.activities,r.activityId); return ac?.areaId===areaId; });
+    if(actId)  items=items.filter(r=>r.activityId===actId);
+    ref.innerHTML=items.map(r=>`<option value="${r.id}">${esc(r.label)}</option>`).join('');
+  } else {
+    let items=S.tasks.filter(t=>t.status!=='done');
+    if(areaId) items=items.filter(t=>t.areaId===areaId);
+    if(actId)  items=items.filter(t=>t.activityId===actId);
+    ref.innerHTML=items.map(t=>`<option value="${t.id}">${esc(t.label)}</option>`).join('');
+  }
+}
+function savePlan(){
+  const label=document.getElementById('mp2-label').value.trim();
+  const type=document.getElementById('mp2-type').value;
+  const refId=type!=='free'?document.getElementById('mp2-ref').value||null:null;
+  const areaId=document.getElementById('mp2-area').value||null;
+  const actId=document.getElementById('mp2-activity').value||null;
+  const dur=parseInt(document.getElementById('mp2-dur').value)||0;
+  // Resolve label from ref if blank
+  let finalLabel=label;
+  if(!finalLabel&&refId){
+    if(type==='routine') finalLabel=byId(S.routines,refId)?.label||'Planned';
+    else finalLabel=byId(S.tasks,refId)?.label||'Planned';
+  }
+  if(!finalLabel){ showToast('Please enter a label'); return; }
+  // Resolve areaId from ref
+  let resolvedArea=areaId;
+  if(!resolvedArea&&refId){
+    if(type==='routine'){ const ac=byId(S.activities,byId(S.routines,refId)?.activityId); resolvedArea=ac?.areaId; }
+    else if(type==='task'){ resolvedArea=byId(S.tasks,refId)?.areaId; }
+  }
+  const actLabel=byId(S.activities,actId)?.label||
+    (type==='routine'?byId(S.activities,byId(S.routines,refId)?.activityId)?.label:'');
+  S.todayPlanned.push({
+    id:'plan-'+uid(), label:finalLabel, type,
+    routineId:type==='routine'?refId:null,
+    taskId:type==='task'?refId:null,
+    areaId:resolvedArea, activityLabel:actLabel,
+    durationMin:dur, tag:'planned', priority:3.5,
+  });
+  closeModal();
+  renderAgendaList();
+  showToast('Added to agenda');
+}
+
 function openLogModalById(id){
   const a=byId(S.actions,id);
   if(a) openLogModal(a);
@@ -2511,7 +2637,15 @@ function openLogModal(existingAction, defaultType, defaultId){
         <option value="">All activities</option>
       </select></div>
   </div>
+  <!-- Context info (shown for routine/task/event, hidden for free) -->
   <div id="m-task-context" style="display:none;background:var(--bg3);border:1px solid var(--line);padding:8px 12px;border-radius:var(--r);font-size:11px;color:var(--ink2);margin-bottom:8px;"></div>
+  <!-- Area / activity selects (shown for free actions, hidden when ref resolves them) -->
+  <div class="grid2" id="m-area-row">
+    <div class="field"><label>Area</label>
+      <select id="m-area-sel"><option value="">— auto —</option>${areaOptions(a.areaId||'')}</select></div>
+    <div class="field"><label>Activity</label>
+      <select id="m-activity-sel"><option value="">— auto —</option>${activityOptions(a.activityId||'')}</select></div>
+  </div>
   <div class="grid2">
     <div class="field"><label>Date</label>
       <input type="date" id="m-date" value="${a.date||S.todayDate}"></div>
@@ -2566,7 +2700,15 @@ function onLogTypeChange(){
     actSel.innerHTML='<option value="">All activities</option>'+acts.map(a=>`<option value="${a.id}" ${curAct===a.id?'selected':''}>${esc(a.label)}</option>`).join('');
   }
 
-  if(t==='free'){ field.style.display='none'; if(filterRow) filterRow.style.display='none'; return; }
+  // For free actions: show area/activity selects
+  const areaRow2=document.getElementById('m-area-row');
+  if(t==='free'){
+    field.style.display='none';
+    if(filterRow) filterRow.style.display='none';
+    if(areaRow2) areaRow2.style.display='';
+    return;
+  }
+  if(areaRow2) areaRow2.style.display='none'; // hidden for ref types (resolved automatically)
   if(filterRow) filterRow.style.display='';
   field.style.display='';
 
@@ -2638,6 +2780,24 @@ function onLogRefChange(){
 
   if(ctxEl){ ctxEl.innerHTML=ctxHtml; ctxEl.style.display=ctxHtml?'':'none'; }
 
+  // Sync area/activity selects and toggle their visibility
+  const areaRow=document.getElementById('m-area-row');
+  const areaSel=document.getElementById('m-area-sel');
+  const actSel2=document.getElementById('m-activity-sel');
+  if(t==='free'){
+    if(areaRow) areaRow.style.display='';
+  } else {
+    // For routine/task/event: auto-resolve area/activity
+    if(areaRow) areaRow.style.display='none';
+    // Still populate so saveLogAction can read them
+    let autoArea=null, autoAct=null;
+    if(t==='routine'){ const r=byId(S.routines,refId); const ac=byId(S.activities,r?.activityId); autoArea=ac?.areaId; autoAct=ac?.id; }
+    else if(t==='task'){ const tk=byId(S.tasks,refId); const proj=byId(S.projects,tk?.projectId); autoArea=tk?.areaId||proj?.areaId; autoAct=tk?.activityId||proj?.activityId; }
+    else if(t==='event'){ const ev=byId(S.events,refId); autoArea=ev?.areaId; }
+    if(areaSel&&autoArea) areaSel.value=autoArea;
+    if(actSel2&&autoAct)  actSel2.value=autoAct;
+  }
+
   // Auto-fill label
   const labelEl=document.getElementById('m-label');
   if(labelEl&&(!labelEl.value||labelEl.dataset.autofilled==='true')){
@@ -2654,15 +2814,17 @@ async function saveLogAction(existingId){
   const perf=parseFloat(document.getElementById('m-perf').value)||null;
   const notes=document.getElementById('m-notes').value.trim();
   const date=document.getElementById('m-date').value||S.todayDate;
-  const areaId=null; // resolved from routine/task below
+  const areaId=document.getElementById('m-area-sel')?.value||null;
+  const activityId=document.getElementById('m-activity-sel')?.value||null;
   const resRaw=document.getElementById('m-resources').value.trim();
   const resources=resRaw?resRaw.split('\n').map(l=>{ const p=l.split('—'); return {url:p[0].trim(),desc:(p[1]||'').trim()}; }).filter(r=>r.url):[]; 
 
   // Resolve areaId from selected routine/task if not overridden
   let resolvedAreaId = areaId;
+  let resolvedActivityId = activityId;
   if(!resolvedAreaId){
-    if(type==='routine'){ const r=byId(S.routines,ref); const ac=byId(S.activities,r?.activityId); resolvedAreaId=ac?.areaId||null; }
-    else if(type==='task'){ const t=byId(S.tasks,ref); const proj=byId(S.projects,t?.projectId); resolvedAreaId=t?.areaId||proj?.areaId||null; }
+    if(type==='routine'){ const r=byId(S.routines,ref); const ac=byId(S.activities,r?.activityId); resolvedAreaId=ac?.areaId||null; resolvedActivityId=resolvedActivityId||ac?.id; }
+    else if(type==='task'){ const t=byId(S.tasks,ref); const proj=byId(S.projects,t?.projectId); resolvedAreaId=t?.areaId||proj?.areaId||null; resolvedActivityId=resolvedActivityId||t?.activityId||proj?.activityId; }
     else if(type==='event'){ const ev=byId(S.events,ref); resolvedAreaId=ev?.areaId||null; }
   }
   const action={
@@ -2672,6 +2834,7 @@ async function saveLogAction(existingId){
     taskId:   type==='task'   ?ref:null,
     eventId:  type==='event'  ?ref:null,
     areaId:resolvedAreaId,
+    activityId:resolvedActivityId||null,
     durationMin:dur, performance:perf, notes,
     resources:JSON.stringify(resources),
     loggedAt:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}),
