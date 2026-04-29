@@ -6,7 +6,7 @@
 <title>lifeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,200;0,9..144,400;1,9..144,200;1,9..144,400&display=swap" rel="stylesheet">
 <link rel="manifest" href="/manifest.json">
-<script src="/api.js?v=14"></script>
+<script src="/api.js?v=15"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ════════════════════════════════════════════════════
@@ -1220,7 +1220,7 @@ function renderAgendaList(){
           <div class="ai-meta" style="margin-top:4px;">${dur}${perf}</div>
         </div>
         <div class="ai-actions">
-          <button class="btn sm ghost" onclick="openLogModalById('${a.id}')">✎</button>
+          <button class="btn sm ghost" onclick="openLogModalById('${a.id}')" title="edit">✎ edit</button>
           <button class="btn sm ghost" onclick="deleteAction('${a.id}')">✕</button>
         </div>
       </div>`;
@@ -1251,9 +1251,10 @@ function renderAgendaList(){
           <div class="ai-meta" style="margin-top:4px;">${tagBadge}${locLabel}</div>
         </div>
         <div class="ai-actions">
-          <button class="btn sm primary" onclick="openLogModal(null,'${s.type}','${s.id}')">log</button>
+          <button class="btn sm primary" onclick="openLogFromSuggestion('${s.tag}','${s.type}','${s.id}',this)" data-label="${esc(s.label)}">log</button>
           ${s.tag==='planned'
-            ?`<button class="btn sm ghost" onclick="removePlan('${s.id}')">✕</button>`
+            ?`<button class="btn sm ghost" onclick="editPlan('${s.id}')">✎</button>
+               <button class="btn sm ghost" onclick="removePlan('${s.id}')">✕</button>`
             :`<button class="btn sm ghost" onclick="skipSuggestion('${s.type}','${s.id}')">skip</button>`
           }
         </div>
@@ -1399,6 +1400,26 @@ async function deleteAction(id){
   renderToday();
 }
 
+function editPlan(id){
+  const plan=S.todayPlanned.find(p=>p.id===id);
+  if(!plan) return;
+  openPlanModal();
+  // Pre-fill after modal renders
+  setTimeout(()=>{
+    const lbl=document.getElementById('mp2-label'); if(lbl) lbl.value=plan.label;
+    const area=document.getElementById('mp2-area'); if(area&&plan.areaId) area.value=plan.areaId;
+    const dur=document.getElementById('mp2-dur'); if(dur&&plan.durationMin) dur.value=plan.durationMin;
+    const typeSel=document.getElementById('mp2-type'); if(typeSel) typeSel.value=plan.routineId?'routine':plan.taskId?'task':'free';
+    // Remove old plan entry — savePlan will create a new one
+    S.todayPlanned=S.todayPlanned.filter(p=>p.id!==id);
+    onPlanTypeChange();
+    setTimeout(()=>{
+      const ref=document.getElementById('mp2-ref');
+      if(ref&&plan.routineId) ref.value=plan.routineId;
+      if(ref&&plan.taskId) ref.value=plan.taskId;
+    },30);
+  },50);
+}
 function removePlan(id){
   S.todayPlanned=S.todayPlanned.filter(p=>p.id!==id);
   renderAgendaList();
@@ -2602,6 +2623,32 @@ function savePlan(){
   showToast('Added to agenda');
 }
 
+function openLogFromSuggestion(tag, type, id, btn){
+  const label = btn ? btn.dataset.label : '';
+  // For planned/free items use the planned label; for routine/task use ref resolution
+  if(tag==='planned' || type==='free'){
+    openLogModal(null, 'free', null);
+    // Pre-fill label after modal opens
+    setTimeout(()=>{
+      const el=document.getElementById('m-label');
+      if(el && label){ el.value=label; el.dataset.autofilled='false'; }
+      // Also pre-fill area/activity from plan item in S.todayPlanned
+      const plan=S.todayPlanned.find(p=>p.id===id);
+      if(plan){
+        const areaSel=document.getElementById('m-area-sel');
+        const actSel=document.getElementById('m-activity-sel');
+        if(areaSel&&plan.areaId) areaSel.value=plan.areaId;
+        if(actSel&&plan.activityId) actSel.value=plan.activityId;
+        const durEl=document.getElementById('m-dur');
+        if(durEl&&plan.durationMin) durEl.value=plan.durationMin;
+        // Remove from planned when logged
+        S.todayPlanned=S.todayPlanned.filter(p=>p.id!==id);
+      }
+    }, 80);
+  } else {
+    openLogModal(null, type, id);
+  }
+}
 function openLogModalById(id){
   const a=byId(S.actions,id);
   if(a) openLogModal(a);
