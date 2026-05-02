@@ -41,9 +41,20 @@ function renderConfig(){
 
 function renderCfgPanel(name){
   try {
-  const fns={areas:renderCfgAreas,activities:renderCfgActivities,projects:renderCfgProjects,
-    tasks:renderCfgTasks,routines:renderCfgRoutines,events:renderCfgEvents,
-    locations:renderCfgLocations,balance:renderCfgBalance,periods:renderCfgPeriods};
+  // Use arrow functions so each panel renderer is looked up at call time
+  // (avoids "not defined" errors from cross-file references)
+  const fns={
+    areas:      ()=>renderCfgAreas(),
+    activities: ()=>renderCfgActivities(),
+    projects:   ()=>renderCfgProjects(),
+    tasks:      ()=>renderCfgTasks(),
+    routines:   ()=>renderCfgRoutines(),
+    events:     ()=>renderCfgEvents(),
+    locations:  ()=>renderCfgLocations(),
+    balance:    ()=>renderCfgBalance(),
+    periods:    ()=>renderCfgPeriods(),
+    freeactions:()=>{ if(typeof renderCfgFreeActions==='function') renderCfgFreeActions(); },
+  };
   fns[name]?.();
   } catch(e){ console.error('renderCfgPanel('+name+') error:', e); if(typeof showToast==='function') showToast('Panel error: '+e.message); }
 }
@@ -422,3 +433,59 @@ async function updateBalanceWeight(periodId,areaId,rawVal,availHours,inputType){
 }
 
 // ════════════════════════════════════════════════════════
+
+
+// ── LOCATIONS ──
+function renderCfgLocations(){
+  const el=document.getElementById('cfg-locations');
+  if(!el) return;
+  el.innerHTML=`<div class="section-head"><h3>Locations</h3>
+    <button class="btn sm primary" onclick="openLocationModal(null)" style="margin-left:auto">+ location</button></div>
+  <div class="entity-list">
+    ${S.locations.map(l=>`<div class="entity-row">
+      <div class="entity-row-main">
+        <div class="entity-row-name">${esc(l.label)}</div>
+        <div class="entity-row-meta">${esc(l.type||'')}${l.address?' · '+esc(l.address):''}</div>
+      </div>
+      <div class="entity-actions">
+        <button class="btn sm ghost" onclick="openLocationModal('${l.id}')">✎</button>
+        <button class="btn sm danger" onclick="deleteEntity('locations','${l.id}')">✕</button>
+      </div>
+    </div>`).join('')||'<div class="empty">No locations defined yet.</div>'}
+  </div>`;
+}
+
+function openLocationModal(id){
+  const l=id?byId(S.locations,id):null;
+  openModal(`<div class="modal-title">${l?'Edit location':'New location'}<button onclick="closeModal()">✕</button></div>
+  <div class="field"><label>Label</label><input type="text" id="ml-label" value="${esc(l?.label||'')}"></div>
+  <div class="grid2">
+    <div class="field"><label>Type</label>
+      <select id="ml-type">
+        <option value="">—</option>
+        ${['home','office','gym','outdoor','online','other'].map(t=>`<option value="${t}" ${l?.type===t?'selected':''}>${t}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Address / URL</label><input type="text" id="ml-address" value="${esc(l?.address||'')}"></div>
+  </div>
+  <div class="field"><label>Description</label><textarea id="ml-desc" rows="2">${esc(l?.description||'')}</textarea></div>
+  <div class="modal-actions">
+    ${l?`<button class="btn danger" onclick="deleteEntity('locations','${l.id}')">delete</button>`:''}
+    <button class="btn" onclick="closeModal()">cancel</button>
+    <button class="btn primary" onclick="saveLocation('${id||''}')">save</button>
+  </div>`);
+}
+
+async function saveLocation(existingId){
+  try {
+    const label=document.getElementById('ml-label').value.trim();
+    if(!label){ showToast('Label is required'); return; }
+    const loc={id:existingId||uid(),label,
+      type:document.getElementById('ml-type').value||null,
+      address:document.getElementById('ml-address').value.trim(),
+      description:document.getElementById('ml-desc').value.trim()};
+    await API.saveLocation(loc);
+    if(existingId) S.locations=S.locations.filter(l=>l.id!==existingId);
+    S.locations.push(loc);
+    closeModal(); renderCfgPanel('locations'); showToast('Location saved');
+  } catch(e){ showToast('Error: '+e.message); console.error(e); }
+}
