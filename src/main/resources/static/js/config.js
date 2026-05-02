@@ -40,15 +40,18 @@ function renderConfig(){
 }
 
 function renderCfgPanel(name){
+  try {
   const fns={areas:renderCfgAreas,activities:renderCfgActivities,projects:renderCfgProjects,
     tasks:renderCfgTasks,routines:renderCfgRoutines,events:renderCfgEvents,
     locations:renderCfgLocations,balance:renderCfgBalance,periods:renderCfgPeriods};
   fns[name]?.();
+  } catch(e){ console.error('renderCfgPanel('+name+') error:', e); if(typeof showToast==='function') showToast('Panel error: '+e.message); }
 }
 
 // ── AREAS ──
 function renderCfgAreas(){
   const el=document.getElementById('cfg-areas');
+  if(!el){ console.error('Element not found'); return; }
   el.innerHTML=`<div class="section-head"><h3>Areas</h3>
     <button class="btn sm primary" onclick="openAreaModal(null)" style="margin-left:auto">+ area</button></div>
   <div class="entity-list">
@@ -66,6 +69,7 @@ function renderCfgAreas(){
 // ── ACTIVITIES ──
 function renderCfgActivities(){
   const el=document.getElementById('cfg-activities');
+  if(!el){ console.error('Element not found'); return; }
   const af=S.cfgAreaFilter;
   const lf=S.cfgLocationFilter||'all';
   let filtered=S.activities.filter(a=>af==='all'||a.areaId===af);
@@ -93,6 +97,7 @@ function renderCfgActivities(){
 // ── PROJECTS ──
 function renderCfgProjects(){
   const el=document.getElementById('cfg-projects');
+  if(!el){ console.error('Element not found'); return; }
   const af=S.cfgAreaFilter;
   const lf=S.cfgLocationFilter||'all';
   const acFilter=S.cfgActivityFilter||'all';
@@ -137,6 +142,7 @@ function renderCfgProjects(){
 // ── TASKS ──
 function renderCfgTasks(){
   const el=document.getElementById('cfg-tasks');
+  if(!el){ console.error('Element not found'); return; }
   const af=S.cfgAreaFilter;
   const pjFilter=S.cfgProjectFilter||'all';
   const lf=S.cfgLocationFilter||'all';
@@ -190,6 +196,7 @@ function renderCfgTasks(){
 // ── ROUTINES ──
 function renderCfgRoutines(){
   const el=document.getElementById('cfg-routines');
+  if(!el){ console.error('Element not found'); return; }
   const af=S.cfgAreaFilter;
   const lf=S.cfgLocationFilter||'all';
   const rActFilter=S.cfgRoutineActFilter||'all';
@@ -238,6 +245,7 @@ function renderCfgRoutines(){
 // ── EVENTS ──
 function renderCfgEvents(){
   const el=document.getElementById('cfg-events');
+  if(!el){ console.error('Element not found'); return; }
   const af=S.cfgAreaFilter;
   const filtered=S.events.filter(ev=>af==='all'||ev.areaId===af);
   el.innerHTML=`<div class="section-head"><h3>Events</h3>${af!=='all'?`<span class="badge" style="background:${areaColor(af)}1a;color:${areaColor(af)}">${esc(areaOf(af)?.label||'')}</span>`:''}
@@ -265,6 +273,7 @@ function renderCfgEvents(){
 // ── PERIODS ──
 function renderCfgPeriods(){
   const el=document.getElementById('cfg-periods');
+  if(!el){ console.error('Element not found'); return; }
   const daysAll=['mon','tue','wed','thu','fri','sat','sun'];
   el.innerHTML=`<div class="section-head"><h3>Periods</h3>
     <button class="btn sm primary" onclick="openPeriodModal(null)" style="margin-left:auto">+ period</button></div>
@@ -287,6 +296,7 @@ function renderCfgPeriods(){
 // ── BALANCE ──
 function renderCfgBalance(){
   const el=document.getElementById('cfg-balance');
+  if(!el){ console.error('Element not found'); return; }
   const af=S.cfgAreaFilter;
   const selPer=S.cfgBalancePeriod||'all';
 

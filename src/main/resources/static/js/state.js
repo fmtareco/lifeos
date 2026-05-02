@@ -1,4 +1,14 @@
 'use strict';
+// Surface any hidden JS errors as toasts for debugging
+window.onerror = function(msg, src, line, col, err){
+  console.error('JS ERROR:', msg, 'at', src, line+':'+col, err);
+  if(typeof showToast === 'function') showToast('JS Error: '+msg, 8000);
+  return false;
+};
+window.addEventListener('unhandledrejection', e=>{
+  console.error('Unhandled promise rejection:', e.reason);
+  if(typeof showToast === 'function') showToast('Async error: '+(e.reason?.message||e.reason), 8000);
+});
 // ════════════════════════════════════════════════════════
 //  STATE
 // ════════════════════════════════════════════════════════
@@ -313,9 +323,14 @@ async function boot(){
   });
   tickClock();
   setInterval(tickClock,30000);
-  // Render today with fresh data — this is the key fix for agenda on start
-  S.todayDate = todayISO();
+  // Render today page with fresh data
   renderToday();
 }
 
-window.addEventListener('DOMContentLoaded', boot);
+// Scripts load at end of <body>, so DOM is already ready — call boot() directly.
+// DOMContentLoaded has already fired; direct invocation is correct here.
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
