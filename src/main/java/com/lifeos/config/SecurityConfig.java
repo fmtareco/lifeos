@@ -37,6 +37,9 @@ public class SecurityConfig {
             // Require authentication for every URL
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/login", "/login.html", "/error").permitAll()
+                // Static assets must be accessible without auth so the browser
+                // can load JS/CSS after the session cookie is set
+                .requestMatchers("/js/**", "/api.js", "/manifest.json").permitAll()
                 .anyRequest().authenticated()
             )
             // Browser form login — redirects to /login when unauthenticated
