@@ -300,7 +300,6 @@ function tickClock(){
 // ════════════════════════════════════════════════════════
 //  BOOT
 // ════════════════════════════════════════════════════════
-let _modalMouseDownOnOverlay = false;
 
 async function boot(){
   S.todayDate = todayISO();
@@ -316,11 +315,6 @@ async function boot(){
   const sel=document.getElementById('kanban-area-filter');
   if(sel) sel.innerHTML='<option value="all">All areas</option>'+
     S.areas.map(a=>'<option value="'+a.id+'">'+esc(a.label)+'</option>').join('');
-  // Attach modal mousedown tracker
-  const overlay=document.getElementById('modal-overlay');
-  if(overlay) overlay.addEventListener('mousedown',e=>{
-    _modalMouseDownOnOverlay=(e.target===overlay);
-  });
   tickClock();
   setInterval(tickClock,30000);
   // Render today page with fresh data
